@@ -58,9 +58,71 @@ int find_available_block(FILE* disk, int data_type)
     return 0; // means no available blocks
 }
 
-int createFile(FILE* disk, int mode)
+int writeToFile(FILE* disk, char* data, int inode_id, int size)
+{
+    char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
+    readBlock(disk, inode_id, inodeBuffer);
+
+    /* --- Find where to write --- */
+    int current_file_size;
+    memcpy(&current_file_size, inodeBuffer, 4);
+
+    int dataBlockOffset = (int) current_file_size / BLOCK_SIZE;
+    int last_block_bytes_left = BLOCK_SIZE - (current_file_size % BLOCK_SIZE);
+    int remaining_size = size - last_block_bytes_left;
+    printf("offset = %d --- vacancy = %d\n", dataBlockOffset, last_block_bytes_left);
+
+    char* buffer = (char*) malloc(BLOCK_SIZE);
+
+    /* --- Write file data to last block --- */
+    int fileBlockNumber;
+    memcpy(&fileBlockNumber, (inodeBuffer + 8) + 4 * dataBlockOffset, 4);
+    readBlock(disk, fileBlockNumber, buffer);
+    if (remaining_size < 0) {
+        memcpy(buffer + (current_file_size % BLOCK_SIZE), data, size);
+        writeBlock(disk, fileBlockNumber, buffer, BLOCK_SIZE);
+    }
+    else {
+        memcpy(buffer + (current_file_size % BLOCK_SIZE), data, last_block_bytes_left);
+        writeBlock(disk, fileBlockNumber, buffer, BLOCK_SIZE);
+    }
+
+    /* --- Write file data to new blocks --- */
+    data += last_block_bytes_left;
+    buffer = (char*) calloc(BLOCK_SIZE, 1);
+    int num_new_blocks = 1;
+    for(int i = 1; i <= num_new_blocks; i++) {
+        if (remaining_size >= 0) {
+            int newDataBlock = find_available_block(disk, 1);
+            if (newDataBlock == 0) {
+                fprintf(stderr, "%s\n", "No more data blocks available");
+                return 0;
+            }
+            printf("new data block: %d\n\n", newDataBlock);
+            memcpy((inodeBuffer + 8) + 4 * (dataBlockOffset + i), &newDataBlock, 4);
+            memcpy(buffer, data, size);
+            if (remaining_size > 0)
+                writeBlock(disk, newDataBlock, buffer, remaining_size);
+        }
+    }
+
+
+
+    /* --- Update file size and block status --- */
+    current_file_size += size;
+    memcpy(inodeBuffer, &current_file_size, 4);
+    writeBlock(disk, inode_id, inodeBuffer, 4);
+
+    free(inodeBuffer);
+    free(buffer);
+    return 1;
+}
+
+int createFile(FILE* disk, char* name, int mode)
 {
     char* inode = (char*) malloc(12);
+
+    /* --- Find available blocks --- */
     int inode_id = find_available_block(disk, 0);
     if (inode_id == 0) {
         fprintf(stderr, "%s\n", "No more inodes available");
@@ -72,6 +134,7 @@ int createFile(FILE* disk, int mode)
         return 0;
     }
 
+    /* --- Insert default inode data --- */
     unsigned int file_size = 0;
     int file_type = mode; // 0 for directory, 1 for flat file
     memcpy(inode + 0, &file_size, 4);
@@ -82,52 +145,54 @@ int createFile(FILE* disk, int mode)
     printf("data block 1: %d\n\n", dataBlock1);
     writeBlock(disk, inode_id, inode, 12);
     free(inode);
+
+    /* --- Create a dir entry in the given dir --- */
+    if (inode_id != 2) {
+        // root dir doesn't need the code below
+        char* dir_entry = (char*) calloc(32, 1);
+        memcpy(dir_entry, &inode_id, 1);
+        memcpy(dir_entry + 1, name, strlen(name) + 1);
+        writeToFile(disk, dir_entry, 2, 32); // create a dir entry in root
+        free(dir_entry);
+    }
+
     return inode_id;
 }
 
-void writeToFile(FILE* disk, char* data, int inode_id, int size)
+int find_file_inode(FILE* disk, int blockNumk, char* name)
 {
+    return 0;
+}
+
+int Write(char* name, char* data) {
+    FILE* disk = fopen("vdisk", "rb+");
     char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
-    readBlock(disk, inode_id, inodeBuffer);
+    readBlock(disk, 2, inodeBuffer);
 
-    /* Find where to write */
-    int current_file_size;
-    memcpy(&current_file_size, inodeBuffer, 4);
-    int dataBlockOffset = current_file_size * 8; // Make it more general
-
-    /* Write file data */
-    int fileBlockNumber;
-    memcpy(&fileBlockNumber, (inodeBuffer + 8) + dataBlockOffset, 4);
-    writeBlock(disk, fileBlockNumber, data, size);
-
-    /* Update file size and data block */
-    current_file_size += size;
-    memcpy(inodeBuffer, &current_file_size, 4);
-    writeBlock(disk, inode_id, inodeBuffer, BLOCK_SIZE);
+    int inode_id = find_file_inode(disk, 2, name);
+    writeToFile(disk, data, 3, strlen(data)); // generalize this 3 ot inode_id
 
     free(inodeBuffer);
+    fclose(disk);
+    return inode_id;
 }
 
-void mkdir(char* name)
+int Mkdir(char* name)
 {
     FILE* disk = fopen("vdisk", "rb+");
-    createFile(disk, 0);
+    int inode_id = createFile(disk, name, 0);
+    if (inode_id == 0) return 0;
     fclose(disk);
+    return inode_id;
 }
 
-void touch(char* name)
+int Touch(char* name)
 {
     FILE* disk = fopen("vdisk", "rb+");
-    int inode_id = createFile(disk, 1);
-
-    char* dir_entry = (char*) calloc(32, 1);
-    memcpy(dir_entry, &inode_id, 1);
-    memcpy(dir_entry + 1, name, strlen(name) + 1);
-
-    writeToFile(disk, dir_entry, 2, 32); // create a dir_entry in root
-
-    free(dir_entry);
+    int inode_id = createFile(disk, name, 1);
+    if (inode_id == 0) return 0;
     fclose(disk);
+    return inode_id;
 }
 
 void InitLLFS()
@@ -142,9 +207,9 @@ void InitLLFS()
 
     /* --- Block 0 --- */
     buffer = (char*) malloc(BLOCK_SIZE);
-    unsigned int magic_num = 2019;
-    unsigned int num_blocks = 4096;
-    unsigned int num_inodes = 126;
+    int magic_num = 2019;
+    int num_blocks = 4096;
+    int num_inodes = 126;
     memcpy(buffer + 0, &magic_num, 4);
     memcpy(buffer + 4, &num_blocks, 4);
     memcpy(buffer + 8, &num_inodes, 4);
@@ -159,7 +224,7 @@ void InitLLFS()
     free(buffer);
 
     /* --- Create root directory --- */
-    createFile(disk, 0); // its inode will be in block 2
+    createFile(disk, NULL, 0); // its inode will be in block 2
 
     fclose(disk);
 }
@@ -167,8 +232,11 @@ void InitLLFS()
 int main()
 {
     InitLLFS();
-    touch("sample");
+    Touch("sample");
+    printf("\n");
 
+    for(int i = 0; i < 50; i++) Write("sample", "helloworld");
+    Write("sample", "abcdefghijklmnopqrstuvwxyz");
 
     return 0;
 }
