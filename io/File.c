@@ -107,7 +107,7 @@ void InitLLFS()
 
     /* --- Block 1 --- */
     buffer = (char*) malloc(BLOCK_SIZE);
-    for (int i = 0; i < BLOCK_SIZE; i++) buffer[i] = 0xFF;
+    for (int i = 0; i < BLOCK_SIZE; i++) buffer[i] = (char) 0xFF;
     memset(buffer, 0x3f, 1); // reserved for superblock and bitmap block
     writeBlock(disk, 1, buffer, BLOCK_SIZE);
     free(buffer);
