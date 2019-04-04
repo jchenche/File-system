@@ -58,30 +58,76 @@ int find_available_block(FILE* disk, int data_type)
     return 0; // means no available blocks
 }
 
-void createFile(FILE* disk, int mode)
+int createFile(FILE* disk, int mode)
 {
     char* inode = (char*) malloc(12);
-    unsigned int inode_id = find_available_block(disk, 0);
+    int inode_id = find_available_block(disk, 0);
     if (inode_id == 0) {
         fprintf(stderr, "%s\n", "No more inodes available");
-        exit(1);
+        return 0;
     }
-    unsigned int dataBlock1 = find_available_block(disk, 1);
+    int dataBlock1 = find_available_block(disk, 1);
     if (dataBlock1 == 0) {
         fprintf(stderr, "%s\n", "No more data blocks available");
-        exit(1);
+        return 0;
     }
 
     unsigned int file_size = 0;
-    unsigned int file_type = mode; // 0 for directory, 1 for flat file
+    int file_type = mode; // 0 for directory, 1 for flat file
     memcpy(inode + 0, &file_size, 4);
     memcpy(inode + 4, &file_type, 4);
     memcpy(inode + 8, &dataBlock1, 4);
 
     printf("inode: %d -- ", inode_id);
-    printf("data_block: %d\n", dataBlock1);
+    printf("data block 1: %d\n\n", dataBlock1);
     writeBlock(disk, inode_id, inode, 12);
     free(inode);
+    return inode_id;
+}
+
+void writeToFile(FILE* disk, char* data, int inode_id, int size)
+{
+    char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
+    readBlock(disk, inode_id, inodeBuffer);
+
+    /* Find where to write */
+    int current_file_size;
+    memcpy(&current_file_size, inodeBuffer, 4);
+    int dataBlockOffset = current_file_size * 8; // Make it more general
+
+    /* Write file data */
+    int fileBlockNumber;
+    memcpy(&fileBlockNumber, (inodeBuffer + 8) + dataBlockOffset, 4);
+    writeBlock(disk, fileBlockNumber, data, size);
+
+    /* Update file size and data block */
+    current_file_size += size;
+    memcpy(inodeBuffer, &current_file_size, 4);
+    writeBlock(disk, inode_id, inodeBuffer, BLOCK_SIZE);
+
+    free(inodeBuffer);
+}
+
+void mkdir(char* name)
+{
+    FILE* disk = fopen("vdisk", "rb+");
+    createFile(disk, 0);
+    fclose(disk);
+}
+
+void touch(char* name)
+{
+    FILE* disk = fopen("vdisk", "rb+");
+    int inode_id = createFile(disk, 1);
+
+    char* dir_entry = (char*) calloc(32, 1);
+    memcpy(dir_entry, &inode_id, 1);
+    memcpy(dir_entry + 1, name, strlen(name) + 1);
+
+    writeToFile(disk, dir_entry, 2, 32); // create a dir_entry in root
+
+    free(dir_entry);
+    fclose(disk);
 }
 
 void InitLLFS()
@@ -108,12 +154,12 @@ void InitLLFS()
     /* --- Block 1 --- */
     buffer = (char*) malloc(BLOCK_SIZE);
     for (int i = 0; i < BLOCK_SIZE; i++) buffer[i] = (char) 0xFF;
-    memset(buffer, 0x3f, 1); // reserved for superblock and bitmap block
+    memset(buffer, 0x3F, 1); // reserved for superblock and bitmap block
     writeBlock(disk, 1, buffer, BLOCK_SIZE);
     free(buffer);
 
     /* --- Create root directory --- */
-    createFile(disk, 0);
+    createFile(disk, 0); // its inode will be in block 2
 
     fclose(disk);
 }
@@ -121,6 +167,7 @@ void InitLLFS()
 int main()
 {
     InitLLFS();
+    touch("sample");
 
 
     return 0;
