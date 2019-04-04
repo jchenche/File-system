@@ -6,6 +6,13 @@
 #define NUM_BLOCKS 4096
 #define INODE_SIZE 160
 
+int ceiling(float number)
+{
+    int int_num = (int) number;
+    if (number == int_num) return (int) number;
+    else                   return (int) (number + 1);
+}
+
 void readBlock(FILE* disk, int blockNum, char* buffer)
 {
     fseek(disk, blockNum * BLOCK_SIZE, SEEK_SET);
@@ -60,6 +67,7 @@ int find_available_block(FILE* disk, int data_type)
 
 int writeToFile(FILE* disk, char* data, int inode_id, int size)
 {
+    char* buffer = (char*) malloc(BLOCK_SIZE);
     char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
     readBlock(disk, inode_id, inodeBuffer);
 
@@ -70,9 +78,6 @@ int writeToFile(FILE* disk, char* data, int inode_id, int size)
     int dataBlockOffset = (int) current_file_size / BLOCK_SIZE;
     int last_block_bytes_left = BLOCK_SIZE - (current_file_size % BLOCK_SIZE);
     int remaining_size = size - last_block_bytes_left;
-    printf("offset = %d --- vacancy = %d\n", dataBlockOffset, last_block_bytes_left);
-
-    char* buffer = (char*) malloc(BLOCK_SIZE);
 
     /* --- Write file data to last block --- */
     int fileBlockNumber;
@@ -88,11 +93,13 @@ int writeToFile(FILE* disk, char* data, int inode_id, int size)
     }
 
     /* --- Write file data to new blocks --- */
-    data += last_block_bytes_left;
-    buffer = (char*) calloc(BLOCK_SIZE, 1);
-    int num_new_blocks = 1;
-    for(int i = 1; i <= num_new_blocks; i++) {
-        if (remaining_size >= 0) {
+    if (remaining_size >= 0) {
+        data += last_block_bytes_left;
+        buffer = (char*) calloc(BLOCK_SIZE, 1);
+        int num_new_blocks = (int) (ceiling((float) remaining_size / BLOCK_SIZE));
+
+        for(int i = 1; i <= num_new_blocks; i++) {
+
             int newDataBlock = find_available_block(disk, 1);
             if (newDataBlock == 0) {
                 fprintf(stderr, "%s\n", "No more data blocks available");
@@ -100,18 +107,19 @@ int writeToFile(FILE* disk, char* data, int inode_id, int size)
             }
             printf("new data block: %d\n\n", newDataBlock);
             memcpy((inodeBuffer + 8) + 4 * (dataBlockOffset + i), &newDataBlock, 4);
-            memcpy(buffer, data, size);
+            memcpy(buffer, data + i - 1, size);
             if (remaining_size > 0)
                 writeBlock(disk, newDataBlock, buffer, remaining_size);
+
+            remaining_size -= BLOCK_SIZE;
+
         }
     }
-
-
 
     /* --- Update file size and block status --- */
     current_file_size += size;
     memcpy(inodeBuffer, &current_file_size, 4);
-    writeBlock(disk, inode_id, inodeBuffer, 4);
+    writeBlock(disk, inode_id, inodeBuffer, BLOCK_SIZE);
 
     free(inodeBuffer);
     free(buffer);
@@ -237,6 +245,7 @@ int main()
 
     for(int i = 0; i < 50; i++) Write("sample", "helloworld");
     Write("sample", "abcdefghijklmnopqrstuvwxyz");
+    Write("sample", "by Jimmy Chen Chen");
 
     return 0;
 }
