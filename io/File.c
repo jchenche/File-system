@@ -18,20 +18,21 @@ void writeBlock(FILE* disk, int blockNum, char* data, int size)
     fwrite(data, size, 1, disk);
 }
 
-int find_bit_one(int c)
+short find_bit_one(int c)
 {
     /* Given a byte, find the first 1 bit starting from the left */
     int mask = 0x100;
-    for (int i = 0; i < 8; i++) {
+    for (short i = 0; i < 8; i++) {
         mask = mask >> 1;
         if ((mask & c) == mask) return i;
     }
     return -1;
 }
 
-int find_available_block(FILE* disk, int data_type)
+short find_available_block(FILE* disk, int data_type)
 {
-    int c, bit_one_num, lower_bound, upper_bound;
+    int c, lower_bound, upper_bound;
+    short bit_one_num;
     char* buffer = (char*) malloc(BLOCK_SIZE);
     readBlock(disk, 1, buffer);
 
@@ -57,23 +58,24 @@ int find_available_block(FILE* disk, int data_type)
     return 0; // means no available blocks
 }
 
-int writeToFile(FILE* disk, char* data, int inode_id, int size)
+short writeToFile(FILE* disk, char* data, short inode_id, int size)
 {
     char* buffer = (char*) malloc(BLOCK_SIZE);
     char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
     readBlock(disk, inode_id, inodeBuffer);
 
-    /* --- Find where to write --- */
+    /* --- Find where to begin to write --- */
     int current_file_size;
     memcpy(&current_file_size, inodeBuffer, 4);
-
     int dataBlockOffset = (int) current_file_size / BLOCK_SIZE;
+    short fileBlockNumber;
+    memcpy(&fileBlockNumber, (inodeBuffer + 8) + 2 * dataBlockOffset, 2);
+
+    /* Some useful numbers */
     int last_block_bytes_left = BLOCK_SIZE - (current_file_size % BLOCK_SIZE);
     int remaining_size = size - last_block_bytes_left;
 
     /* --- Write file data to last block --- */
-    int fileBlockNumber;
-    memcpy(&fileBlockNumber, (inodeBuffer + 8) + 4 * dataBlockOffset, 4);
     readBlock(disk, fileBlockNumber, buffer);
     if (remaining_size < 0) {
         memcpy(buffer + (current_file_size % BLOCK_SIZE), data, size);
@@ -91,12 +93,12 @@ int writeToFile(FILE* disk, char* data, int inode_id, int size)
 
         for(int i = 1; i <= num_new_blocks; i++) {
 
-            int newDataBlock = find_available_block(disk, 1);
+            short newDataBlock = find_available_block(disk, 1);
             if (newDataBlock == 0) {
                 fprintf(stderr, "%s\n", "No more data blocks available");
                 return 0;
             }
-            memcpy((inodeBuffer + 8) + 4 * (dataBlockOffset + i), &newDataBlock, 4);
+            memcpy((inodeBuffer + 8) + 2 * (dataBlockOffset + i), &newDataBlock, 2);
 
             if (remaining_size > 0) {
                 if (i != num_new_blocks) {
@@ -123,29 +125,29 @@ int writeToFile(FILE* disk, char* data, int inode_id, int size)
     return 1;
 }
 
-int createFile(FILE* disk, char* name, int mode)
+short createFile(FILE* disk, char* name, int mode)
 {
-    char* inode = (char*) malloc(12);
+    char* inode = (char*) malloc(10);
 
     /* --- Find available blocks --- */
-    int inode_id = find_available_block(disk, 0);
+    short inode_id = find_available_block(disk, 0);
     if (inode_id == 0) {
         fprintf(stderr, "%s\n", "No more inodes available");
         return 0;
     }
-    int dataBlock1 = find_available_block(disk, 1);
+    short dataBlock1 = find_available_block(disk, 1);
     if (dataBlock1 == 0) {
         fprintf(stderr, "%s\n", "No more data blocks available");
         return 0;
     }
 
     /* --- Insert default inode data --- */
-    unsigned int file_size = 0;
+    int file_size = 0;
     int file_type = mode; // 0 for directory, 1 for flat file
     memcpy(inode + 0, &file_size, 4);
     memcpy(inode + 4, &file_type, 4);
-    memcpy(inode + 8, &dataBlock1, 4);
-    writeBlock(disk, inode_id, inode, 12);
+    memcpy(inode + 8, &dataBlock1, 2);
+    writeBlock(disk, inode_id, inode, 10);
     free(inode);
 
     /* --- Create a dir entry in the given dir --- */
@@ -154,44 +156,50 @@ int createFile(FILE* disk, char* name, int mode)
         char* dir_entry = (char*) calloc(32, 1);
         memcpy(dir_entry, &inode_id, 1);
         memcpy(dir_entry + 1, name, strlen(name) + 1);
-        writeToFile(disk, dir_entry, 2, 32); // create a dir entry in root
+        writeToFile(disk, dir_entry, 2, 32); // create a dir entry in root. generalize 2
         free(dir_entry);
     }
 
     return inode_id;
 }
 
-int find_file_inode(FILE* disk, int blockNumk, char* name)
+short find_file_inode(FILE* disk, int blockNumk, char* name)
 {
     return 0;
 }
 
-int Write(char* name, char* data) {
+short Write(char* name, char* data) {
     FILE* disk = fopen("vdisk", "rb+");
     char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
-    readBlock(disk, 2, inodeBuffer);
+    readBlock(disk, 2, inodeBuffer); // generalize this 2 (we actually have to search)
 
-    int inode_id = find_file_inode(disk, 2, name);
-    writeToFile(disk, data, 3, strlen(data)); // generalize this 3 ot inode_id
+    short inode_id = find_file_inode(disk, 2, name);
+    // if (inode_id == 0) {
+    //     fprintf(stderr, "%s\n", "File doesn't exist");
+    //     free(inodeBuffer);
+    //     fclose(disk);
+    //     return 0;
+    // }
+    writeToFile(disk, data, 3, strlen(data)); // generalize this 3 to inode_id
 
     free(inodeBuffer);
     fclose(disk);
     return inode_id;
 }
 
-int Mkdir(char* name)
+short Mkdir(char* name)
 {
     FILE* disk = fopen("vdisk", "rb+");
-    int inode_id = createFile(disk, name, 0);
+    short inode_id = createFile(disk, name, 0);
     fclose(disk);
     if (inode_id == 0) return 0;
     return inode_id;
 }
 
-int Touch(char* name)
+short Touch(char* name)
 {
     FILE* disk = fopen("vdisk", "rb+");
-    int inode_id = createFile(disk, name, 1);
+    short inode_id = createFile(disk, name, 1);
     fclose(disk);
     if (inode_id == 0) return 0;
     return inode_id;
@@ -237,17 +245,16 @@ int main()
 {
     InitLLFS();
     Touch("sample_file");
-    printf("\n");
 
     FILE* fp = fopen("sample", "rb");
     fseek(fp, 0, SEEK_END);
     int size = ftell(fp);
-    char* content = malloc(size + 1);
+    unsigned char* content = (unsigned char*) malloc(size + 1);
     fseek(fp, 0, SEEK_SET);
     fread(content, size, 1, fp);
     content[size] = '\0';
 
-    Write("sample_file", content);
+    Write("sample_file", (char*) content);
     Write("sample_file", "- by Jimmy Chen Chen"); // has size 20
 
     free(content);
