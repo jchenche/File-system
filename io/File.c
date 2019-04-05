@@ -94,9 +94,8 @@ int writeToFile(FILE* disk, char* data, int inode_id, int size)
 
     /* --- Write file data to new blocks --- */
     if (remaining_size >= 0) {
-        data += last_block_bytes_left;
-        buffer = (char*) calloc(BLOCK_SIZE, 1);
-        int num_new_blocks = (int) (ceiling((float) remaining_size / BLOCK_SIZE));
+        data += last_block_bytes_left; // remaining data
+        int num_new_blocks = ((int) (remaining_size / BLOCK_SIZE)) + 1;
 
         for(int i = 1; i <= num_new_blocks; i++) {
 
@@ -107,11 +106,18 @@ int writeToFile(FILE* disk, char* data, int inode_id, int size)
             }
             printf("new data block: %d\n\n", newDataBlock);
             memcpy((inodeBuffer + 8) + 4 * (dataBlockOffset + i), &newDataBlock, 4);
-            memcpy(buffer, data + i - 1, size);
-            if (remaining_size > 0)
-                writeBlock(disk, newDataBlock, buffer, remaining_size);
 
-            remaining_size -= BLOCK_SIZE;
+            if (remaining_size > 0) {
+                if (i != num_new_blocks) {
+                    memcpy(buffer, data, BLOCK_SIZE);
+                    writeBlock(disk, newDataBlock, buffer, BLOCK_SIZE);
+                    data += BLOCK_SIZE;
+                    remaining_size -= BLOCK_SIZE;
+                } else {
+                    memcpy(buffer, data, remaining_size);
+                    writeBlock(disk, newDataBlock, buffer, remaining_size);
+                }
+            }
 
         }
     }
@@ -208,10 +214,13 @@ void InitLLFS()
     char* buffer;
 
     /* --- Initialize --- */
-    FILE* disk = fopen("vdisk", "rb+");
+    FILE* disk = fopen("vdisk", "wb");
     char* init = calloc(BLOCK_SIZE * NUM_BLOCKS, 1);
     fwrite(init, BLOCK_SIZE*NUM_BLOCKS, 1, disk);
     free(init);
+    fclose(disk);
+
+    disk = fopen("vdisk", "rb+");
 
     /* --- Block 0 --- */
     buffer = (char*) malloc(BLOCK_SIZE);
