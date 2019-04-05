@@ -6,13 +6,6 @@
 #define NUM_BLOCKS 4096
 #define INODE_SIZE 160
 
-int ceiling(float number)
-{
-    int int_num = (int) number;
-    if (number == int_num) return (int) number;
-    else                   return (int) (number + 1);
-}
-
 void readBlock(FILE* disk, int blockNum, char* buffer)
 {
     fseek(disk, blockNum * BLOCK_SIZE, SEEK_SET);
@@ -55,7 +48,6 @@ int find_available_block(FILE* disk, int data_type)
     for (int i = lower_bound; i < upper_bound; i++) {
         c = buffer[i];
         if ((bit_one_num = find_bit_one(c)) != -1) {
-            printf("location: %d\n", BLOCK_SIZE + i);
             buffer[i] = c & (~(0x80 >> bit_one_num)); // set to 0 now
             writeBlock(disk, 1, buffer, BLOCK_SIZE);
             return i * 8 + bit_one_num;
@@ -104,7 +96,6 @@ int writeToFile(FILE* disk, char* data, int inode_id, int size)
                 fprintf(stderr, "%s\n", "No more data blocks available");
                 return 0;
             }
-            printf("new data block: %d\n\n", newDataBlock);
             memcpy((inodeBuffer + 8) + 4 * (dataBlockOffset + i), &newDataBlock, 4);
 
             if (remaining_size > 0) {
@@ -154,9 +145,6 @@ int createFile(FILE* disk, char* name, int mode)
     memcpy(inode + 0, &file_size, 4);
     memcpy(inode + 4, &file_type, 4);
     memcpy(inode + 8, &dataBlock1, 4);
-
-    printf("inode: %d -- ", inode_id);
-    printf("data block 1: %d\n\n", dataBlock1);
     writeBlock(disk, inode_id, inode, 12);
     free(inode);
 
@@ -195,8 +183,8 @@ int Mkdir(char* name)
 {
     FILE* disk = fopen("vdisk", "rb+");
     int inode_id = createFile(disk, name, 0);
-    if (inode_id == 0) return 0;
     fclose(disk);
+    if (inode_id == 0) return 0;
     return inode_id;
 }
 
@@ -204,15 +192,13 @@ int Touch(char* name)
 {
     FILE* disk = fopen("vdisk", "rb+");
     int inode_id = createFile(disk, name, 1);
-    if (inode_id == 0) return 0;
     fclose(disk);
+    if (inode_id == 0) return 0;
     return inode_id;
 }
 
 void InitLLFS()
 {
-    char* buffer;
-
     /* --- Initialize --- */
     FILE* disk = fopen("vdisk", "wb");
     char* init = calloc(BLOCK_SIZE * NUM_BLOCKS, 1);
@@ -221,6 +207,7 @@ void InitLLFS()
     fclose(disk);
 
     disk = fopen("vdisk", "rb+");
+    char* buffer;
 
     /* --- Block 0 --- */
     buffer = (char*) malloc(BLOCK_SIZE);
@@ -249,12 +236,21 @@ void InitLLFS()
 int main()
 {
     InitLLFS();
-    Touch("sample");
+    Touch("sample_file");
     printf("\n");
 
-    for(int i = 0; i < 50; i++) Write("sample", "helloworld");
-    Write("sample", "abcdefghijklmnopqrstuvwxyz");
-    Write("sample", "by Jimmy Chen Chen");
+    FILE* fp = fopen("sample", "rb");
+    fseek(fp, 0, SEEK_END);
+    int size = ftell(fp);
+    char* content = malloc(size + 1);
+    fseek(fp, 0, SEEK_SET);
+    fread(content, size, 1, fp);
+    content[size] = '\0';
 
+    Write("sample_file", content);
+    Write("sample_file", "- by Jimmy Chen Chen"); // has size 20
+
+    free(content);
+    fclose(fp);
     return 0;
 }
