@@ -162,46 +162,17 @@ int readFromFile(FILE* disk, char* data, short inode_id, int size)
     return size;
 }
 
-short createFile(FILE* disk, char* name, int mode)
+int get_file_size(FILE* disk, short inode_id)
 {
-    char* inode = (char*) malloc(10);
-
-    /* --- Find available blocks --- */
-    short inode_id = find_available_block(disk, 0);
-    if (inode_id == 0) {
-        fprintf(stderr, "%s\n", "No more inodes available");
-        return 0;
-    }
-    short dataBlock1 = find_available_block(disk, 1);
-    if (dataBlock1 == 0) {
-        fprintf(stderr, "%s\n", "No more data blocks available");
-        return 0;
-    }
-
-    /* --- Insert default inode data --- */
-    int file_size = 0;
-    int file_type = mode; // 0 for directory, 1 for flat file
-    memcpy(inode + 0, &file_size, 4);
-    memcpy(inode + 4, &file_type, 4);
-    memcpy(inode + 8, &dataBlock1, 2);
-    writeBlock(disk, inode_id, inode, 10);
-    free(inode);
-
-    /* --- Create a dir entry in the given dir --- */
-    if (inode_id != 2) {
-        // root dir doesn't need the code below
-        char* dir_entry = (char*) calloc(32, 1);
-        memcpy(dir_entry, &inode_id, 1);
-        memcpy(dir_entry + 1, name, strlen(name) + 1);
-        // TODO: make sure file names within the same dir don't conflict
-        writeToFile(disk, dir_entry, 2, 32); // create a dir entry in root. generalize 2
-        free(dir_entry);
-    }
-
-    return inode_id;
+    char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
+    readBlock(disk, inode_id, inodeBuffer);
+    int current_file_size;
+    memcpy(&current_file_size, inodeBuffer, 4);
+    free(inodeBuffer);
+    return current_file_size;
 }
 
-short find_file_location(FILE* disk, char* name)
+short walk_path(FILE* disk, char* name)
 {
 
     return 2;
@@ -209,13 +180,21 @@ short find_file_location(FILE* disk, char* name)
 
 short find_file_inode(FILE* disk, char* name)
 {
-    short directory_inode = find_file_location(disk, name); // dir that contains the file
-    char* buffer = (char*) malloc(BLOCK_SIZE + 1);
-    readFromFile(disk, buffer, directory_inode, BLOCK_SIZE);
+    short directory_inode = walk_path(disk, name); // dir that contains the file
+    int size = get_file_size(disk, directory_inode);
+    char* buffer = (char*) malloc(size);
+    readFromFile(disk, buffer, directory_inode, size);
 
-    
-
-    return 4;
+    short inode_id = 0;
+    for(int i = 0; i < size; i++) {
+        if (memcmp(buffer + 1, name, strlen(name) + 1) == 0) {
+            memcpy(&inode_id, buffer, 1);
+            break;
+        }
+        i += 32;
+        buffer += 32;
+    }
+    return inode_id;
 }
 
 short Write(char* name, char* data, int size) {
@@ -241,6 +220,46 @@ short Read(char* name, char* buffer, int size) {
     }
     readFromFile(disk, buffer, inode_id, size);
     fclose(disk);
+    return inode_id;
+}
+
+short createFile(FILE* disk, char* name, int type)
+{
+    char* inode = (char*) malloc(10);
+
+    /* --- Find available blocks --- */
+    short inode_id = find_available_block(disk, 0);
+    if (inode_id == 0) {
+        fprintf(stderr, "%s\n", "No more inodes available");
+        return 0;
+    }
+    short dataBlock1 = find_available_block(disk, 1);
+    if (dataBlock1 == 0) {
+        fprintf(stderr, "%s\n", "No more data blocks available");
+        return 0;
+    }
+
+    /* --- Insert default inode data --- */
+    int file_size = 0;
+    int file_type = type; // 0 for directory, 1 for flat file
+    memcpy(inode + 0, &file_size, 4);
+    memcpy(inode + 4, &file_type, 4);
+    memcpy(inode + 8, &dataBlock1, 2);
+    writeBlock(disk, inode_id, inode, 10);
+    free(inode);
+
+    /* --- Create a dir entry in the given dir --- */
+    if (inode_id != 2) {
+        // root dir doesn't need the code below
+        char* dir_entry = (char*) calloc(32, 1);
+        memcpy(dir_entry, &inode_id, 1);
+        memcpy(dir_entry + 1, name, strlen(name) + 1);
+        // TODO: make sure file names within the same dir don't conflict
+        // TODO: walk the path to find the directory_inode. generalize 2 to that
+        writeToFile(disk, dir_entry, 2, 32); // create a dir entry in root. 
+        free(dir_entry);
+    }
+
     return inode_id;
 }
 
@@ -275,6 +294,7 @@ int get_size(char* name)
     readBlock(disk, inode_id, inodeBuffer);
     int current_file_size;
     memcpy(&current_file_size, inodeBuffer, 4);
+    free(inodeBuffer);
     fclose(disk);
     return current_file_size;
 }
@@ -332,8 +352,9 @@ int main()
     Write("sample_file", "- by Jimmy Chen Chen", 20);
 
     int file_size = get_size("sample_file");
-    char* buffer = (char*) malloc(file_size);
+    char* buffer = (char*) malloc(file_size + 1);
     Read("sample_file", buffer, file_size);
+    buffer[file_size] = '\0';
     printf("%s\n", buffer);
 
     free(buffer);
