@@ -213,7 +213,7 @@ short find_file_inode(FILE* disk, char* name)
     char* buffer = (char*) malloc(BLOCK_SIZE + 1);
     readFromFile(disk, buffer, directory_inode, BLOCK_SIZE);
 
-    return 3;
+    return 4;
 }
 
 short Write(char* name, char* data) {
