@@ -58,7 +58,7 @@ short find_available_block(FILE* disk, int data_type)
     return 0; // means no available blocks
 }
 
-short writeToFile(FILE* disk, char* data, short inode_id, int size)
+int writeToFile(FILE* disk, char* data, short inode_id, int size)
 {
     char* buffer = (char*) malloc(BLOCK_SIZE);
     char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
@@ -67,7 +67,7 @@ short writeToFile(FILE* disk, char* data, short inode_id, int size)
     /* --- Find where to begin to write --- */
     int current_file_size;
     memcpy(&current_file_size, inodeBuffer, 4);
-    int dataBlockOffset = (int) current_file_size / BLOCK_SIZE;
+    int dataBlockOffset = (int) (current_file_size / BLOCK_SIZE);
     short fileBlockNumber;
     memcpy(&fileBlockNumber, (inodeBuffer + 8) + 2 * dataBlockOffset, 2);
 
@@ -122,7 +122,44 @@ short writeToFile(FILE* disk, char* data, short inode_id, int size)
 
     free(inodeBuffer);
     free(buffer);
-    return 1;
+    return size;
+}
+
+int readFromFile(FILE* disk, char* data, short inode_id, int size)
+{
+    char* buffer = (char*) malloc(BLOCK_SIZE);
+    char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
+    readBlock(disk, inode_id, inodeBuffer);
+
+    /* --- Find where to stop reading --- */
+    int current_file_size;
+    int lastDataBlock;
+    memcpy(&current_file_size, inodeBuffer, 4);
+    if (current_file_size < size) size = current_file_size;
+    lastDataBlock = (int) (size / BLOCK_SIZE);
+
+    /* Read file data from blocks */
+    short fileBlockNumber;
+    for(int i = 0; i <= lastDataBlock; i++) {
+
+        memcpy(&fileBlockNumber, (inodeBuffer + 8) + 2 * i, 2);
+        if (size > 0) {
+            if (i != lastDataBlock) {
+                readBlock(disk, fileBlockNumber, buffer);
+                memcpy(data, buffer, BLOCK_SIZE);
+                data += BLOCK_SIZE;
+                size -= BLOCK_SIZE;
+            } else {
+                readBlock(disk, fileBlockNumber, buffer);
+                memcpy(data, buffer, size);
+            }
+        }
+
+    }
+
+    free(inodeBuffer);
+    free(buffer);
+    return size;
 }
 
 short createFile(FILE* disk, char* name, int mode)
@@ -156,6 +193,7 @@ short createFile(FILE* disk, char* name, int mode)
         char* dir_entry = (char*) calloc(32, 1);
         memcpy(dir_entry, &inode_id, 1);
         memcpy(dir_entry + 1, name, strlen(name) + 1);
+        // TODO: make sure file names within the same dir don't conflict
         writeToFile(disk, dir_entry, 2, 32); // create a dir entry in root. generalize 2
         free(dir_entry);
     }
@@ -163,26 +201,43 @@ short createFile(FILE* disk, char* name, int mode)
     return inode_id;
 }
 
-short find_file_inode(FILE* disk, int blockNumk, char* name)
+short find_file_location(FILE* disk, char* name)
 {
-    return 0;
+
+    return 2;
+}
+
+short find_file_inode(FILE* disk, char* name)
+{
+    short directory_inode = find_file_location(disk, name); // dir that contains the file
+    char* buffer = (char*) malloc(BLOCK_SIZE + 1);
+    readFromFile(disk, buffer, directory_inode, BLOCK_SIZE);
+
+    return 3;
 }
 
 short Write(char* name, char* data) {
     FILE* disk = fopen("vdisk", "rb+");
-    char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
-    readBlock(disk, 2, inodeBuffer); // generalize this 2 (we actually have to search)
+    short inode_id = find_file_inode(disk, name);
+    if (inode_id == 0) {
+        fprintf(stderr, "%s\n", "File doesn't exist");
+        fclose(disk);
+        return 0;
+    }
+    writeToFile(disk, data, inode_id, strlen(data));
+    fclose(disk);
+    return inode_id;
+}
 
-    short inode_id = find_file_inode(disk, 2, name);
-    // if (inode_id == 0) {
-    //     fprintf(stderr, "%s\n", "File doesn't exist");
-    //     free(inodeBuffer);
-    //     fclose(disk);
-    //     return 0;
-    // }
-    writeToFile(disk, data, 3, strlen(data)); // generalize this 3 to inode_id
-
-    free(inodeBuffer);
+short Read(char* name, char* buffer, int size) {
+    FILE* disk = fopen("vdisk", "rb+");
+    short inode_id = find_file_inode(disk, name);
+    if (inode_id == 0) {
+        fprintf(stderr, "%s\n", "File doesn't exist");
+        fclose(disk);
+        return 0;
+    }
+    readFromFile(disk, buffer, inode_id, size);
     fclose(disk);
     return inode_id;
 }
@@ -244,6 +299,7 @@ void InitLLFS()
 int main()
 {
     InitLLFS();
+    Touch("first_file.txt");
     Touch("sample_file");
 
     FILE* fp = fopen("sample", "rb");
@@ -257,6 +313,11 @@ int main()
     Write("sample_file", (char*) content);
     Write("sample_file", "- by Jimmy Chen Chen"); // has size 20
 
+    char* buffer = (char*) malloc(BLOCK_SIZE + 1); // +1 for \0
+    Read("sample_file", buffer, BLOCK_SIZE);
+    printf("%s\n", buffer);
+
+    free(buffer);
     free(content);
     fclose(fp);
     return 0;
