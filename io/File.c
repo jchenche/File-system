@@ -51,11 +51,24 @@ short find_available_block(FILE* disk, int data_type)
         if ((bit_one_num = find_bit_one(c)) != -1) {
             buffer[i] = c & (~(0x80 >> bit_one_num)); // set to 0 now
             writeBlock(disk, 1, buffer, BLOCK_SIZE);
+            free(buffer);
             return i * 8 + bit_one_num;
         }
     }
 
+    free(buffer);
     return 0; // means no available blocks
+}
+
+void deallocate_block(FILE* disk, short blockNum)
+{
+    int byte_num = blockNum / 8;
+    int bit_num = blockNum % 8;
+    char* buffer = (char*) malloc(BLOCK_SIZE);
+    readBlock(disk, 1, buffer);
+    buffer[byte_num] = (buffer[byte_num]) | (0x80 >> bit_num);
+    writeBlock(disk, 1, buffer, BLOCK_SIZE);
+    free(buffer);
 }
 
 int writeToFile(FILE* disk, char* data, short inode_id, int size)
@@ -270,9 +283,9 @@ short Read(char* name, char* buffer, int size, char* path) {
     return inode_id;
 }
 
-int name_collision(FILE* disk, short inode_id, char* name)
+int name_collision(FILE* disk, short directory_inode, char* name)
 {
-    if (find_inode(disk, name, inode_id) == 0) {
+    if (find_inode(disk, name, directory_inode) == 0) {
         return 0;
     } else {
         fprintf(stderr, "%s\n", "There's a name collision");
@@ -282,10 +295,16 @@ int name_collision(FILE* disk, short inode_id, char* name)
 
 short createFile(FILE* disk, char* name, int type, char* path)
 {
-    /* --- Find available inode block --- */
+    /* --- Allocate blocks --- */
     short inode_id = find_available_block(disk, 0);
     if (inode_id == 0) {
-        fprintf(stderr, "%s\n", "No more inodes available");
+        fprintf(stderr, "%s\n", "No more inode blocks available");
+        return 0;
+    }
+    short dataBlock1 = find_available_block(disk, 1);
+    if (dataBlock1 == 0) {
+        fprintf(stderr, "%s\n", "No more data blocks available");
+        deallocate_block(disk, inode_id);
         return 0;
     }
 
@@ -293,6 +312,8 @@ short createFile(FILE* disk, char* name, int type, char* path)
     if (inode_id != 2) { // root dir doesn't need the code below
         short directory_inode = walk_path(disk, path);
         if (directory_inode == 0 || name_collision(disk, directory_inode, name)) {
+            deallocate_block(disk, inode_id);
+            deallocate_block(disk, dataBlock1);
             return 0;
         }
         char* dir_entry = (char*) calloc(32, 1);
@@ -300,13 +321,6 @@ short createFile(FILE* disk, char* name, int type, char* path)
         memcpy(dir_entry + 1, name, strlen(name) + 1);
         writeToFile(disk, dir_entry, directory_inode, 32); // create a dir entry in root. 
         free(dir_entry);
-    }
-
-    /* Allocate a data block */
-    short dataBlock1 = find_available_block(disk, 1);
-    if (dataBlock1 == 0) {
-        fprintf(stderr, "%s\n", "No more data blocks available");
-        return 0;
     }
 
     /* --- Insert default inode data --- */
@@ -403,7 +417,7 @@ int main()
     Touch("first_file.txt", "/var/tmp/");
     char* path = "/var";
     Touch("sample_file", path);
-    
+
     printf("\n");
 
     FILE* fp = fopen("sample", "rb");
