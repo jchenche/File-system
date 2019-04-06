@@ -166,21 +166,18 @@ int get_file_size(FILE* disk, short inode_id)
 {
     char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
     readBlock(disk, inode_id, inodeBuffer);
+
     int current_file_size;
     memcpy(&current_file_size, inodeBuffer, 4);
+
     free(inodeBuffer);
     return current_file_size;
 }
 
-short walk_path(FILE* disk, char* name)
+short find_inode(FILE* disk, char* name, short directory_inode)
 {
+    /* Find the inode of a file in a given directory */
 
-    return 2;
-}
-
-short find_file_inode(FILE* disk, char* name)
-{
-    short directory_inode = walk_path(disk, name); // dir that contains the file
     int size = get_file_size(disk, directory_inode);
     char* buffer = (char*) malloc(size);
     readFromFile(disk, buffer, directory_inode, size);
@@ -194,45 +191,118 @@ short find_file_inode(FILE* disk, char* name)
         i += 32;
         buffer += 32;
     }
+
     return inode_id;
 }
 
-short Write(char* name, char* data, int size) {
+int is_flat_file(FILE* disk, short inode_id)
+{
+    char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
+    readBlock(disk, inode_id, inodeBuffer);
+
+    int file_type;
+    memcpy(&file_type, inodeBuffer + 4, 4);
+
+    free(inodeBuffer);
+    return file_type;
+}
+
+short walk_path(FILE* disk, char* _path)
+{
+    char* path = (char*) malloc(strlen(_path) + 1);
+    memcpy(path, _path, strlen(_path) + 1);
+
+    short directory_inode = 2; // start walking from root, which is denoted by 2
+    char* token = strtok(path, "/");
+    while(token != NULL) {
+        directory_inode = find_inode(disk, token, directory_inode);
+        if (directory_inode == 0) {
+            fprintf(stderr, "Directory named %s doesn't exist\n", token);
+            free(path);
+            return 0;
+        }
+        if (is_flat_file(disk, directory_inode)) {
+            fprintf(stderr, "%s is not a directory\n", token);
+            free(path);
+            return 0;
+        }
+        token = strtok(NULL, "/");
+    }
+
+    free(path);
+    return directory_inode;
+}
+
+short find_file_inode(FILE* disk, char* name, char* path)
+{
+    short directory_inode = walk_path(disk, path); // dir that contains the file
+    if (directory_inode == 0) return 0;
+    return find_inode(disk, name, directory_inode);
+}
+
+short Write(char* name, char* data, int size, char* path) {
     FILE* disk = fopen("vdisk", "rb+");
-    short inode_id = find_file_inode(disk, name);
+
+    short inode_id = find_file_inode(disk, name, path);
     if (inode_id == 0) {
         fprintf(stderr, "%s\n", "File doesn't exist");
         fclose(disk);
         return 0;
     }
     writeToFile(disk, data, inode_id, size);
+
     fclose(disk);
     return inode_id;
 }
 
-short Read(char* name, char* buffer, int size) {
+short Read(char* name, char* buffer, int size, char* path) {
     FILE* disk = fopen("vdisk", "rb+");
-    short inode_id = find_file_inode(disk, name);
+
+    short inode_id = find_file_inode(disk, name, path);
     if (inode_id == 0) {
         fprintf(stderr, "%s\n", "File doesn't exist");
         fclose(disk);
         return 0;
     }
     readFromFile(disk, buffer, inode_id, size);
+
     fclose(disk);
     return inode_id;
 }
 
-short createFile(FILE* disk, char* name, int type)
+int name_collision(FILE* disk, short inode_id, char* name)
 {
-    char* inode = (char*) malloc(10);
+    if (find_inode(disk, name, inode_id) == 0) {
+        return 0;
+    } else {
+        fprintf(stderr, "%s\n", "There's a name collision");
+        return 1;
+    }
+}
 
-    /* --- Find available blocks --- */
+short createFile(FILE* disk, char* name, int type, char* path)
+{
+    /* --- Find available inode block --- */
     short inode_id = find_available_block(disk, 0);
     if (inode_id == 0) {
         fprintf(stderr, "%s\n", "No more inodes available");
         return 0;
     }
+
+    /* --- Create a dir entry in the given dir --- */
+    if (inode_id != 2) { // root dir doesn't need the code below
+        short directory_inode = walk_path(disk, path);
+        if (directory_inode == 0 || name_collision(disk, directory_inode, name)) {
+            return 0;
+        }
+        char* dir_entry = (char*) calloc(32, 1);
+        memcpy(dir_entry, &inode_id, 1);
+        memcpy(dir_entry + 1, name, strlen(name) + 1);
+        writeToFile(disk, dir_entry, directory_inode, 32); // create a dir entry in root. 
+        free(dir_entry);
+    }
+
+    /* Allocate a data block */
     short dataBlock1 = find_available_block(disk, 1);
     if (dataBlock1 == 0) {
         fprintf(stderr, "%s\n", "No more data blocks available");
@@ -240,6 +310,7 @@ short createFile(FILE* disk, char* name, int type)
     }
 
     /* --- Insert default inode data --- */
+    char* inode = (char*) malloc(10);
     int file_size = 0;
     int file_type = type; // 0 for directory, 1 for flat file
     memcpy(inode + 0, &file_size, 4);
@@ -248,43 +319,31 @@ short createFile(FILE* disk, char* name, int type)
     writeBlock(disk, inode_id, inode, 10);
     free(inode);
 
-    /* --- Create a dir entry in the given dir --- */
-    if (inode_id != 2) {
-        // root dir doesn't need the code below
-        char* dir_entry = (char*) calloc(32, 1);
-        memcpy(dir_entry, &inode_id, 1);
-        memcpy(dir_entry + 1, name, strlen(name) + 1);
-        // TODO: make sure file names within the same dir don't conflict
-        // TODO: walk the path to find the directory_inode. generalize 2 to that
-        writeToFile(disk, dir_entry, 2, 32); // create a dir entry in root. 
-        free(dir_entry);
-    }
-
     return inode_id;
 }
 
-short Mkdir(char* name)
+short Mkdir(char* name, char* path)
 {
     FILE* disk = fopen("vdisk", "rb+");
-    short inode_id = createFile(disk, name, 0);
+    short inode_id = createFile(disk, name, 0, path);
     fclose(disk);
     if (inode_id == 0) return 0;
     return inode_id;
 }
 
-short Touch(char* name)
+short Touch(char* name, char* path)
 {
     FILE* disk = fopen("vdisk", "rb+");
-    short inode_id = createFile(disk, name, 1);
+    short inode_id = createFile(disk, name, 1, path);
     fclose(disk);
     if (inode_id == 0) return 0;
     return inode_id;
 }
 
-int get_size(char* name)
+int get_size(char* name, char* path) // Testing function
 {
     FILE* disk = fopen("vdisk", "rb+");
-    short inode_id = find_file_inode(disk, name);
+    short inode_id = find_file_inode(disk, name, path);
     if (inode_id == 0) {
         fprintf(stderr, "%s\n", "File doesn't exist");
         fclose(disk);
@@ -330,16 +389,22 @@ void InitLLFS()
     free(buffer);
 
     /* --- Create root directory --- */
-    createFile(disk, NULL, 0); // its inode will be in block 2
+    createFile(disk, NULL, 0, NULL); // its inode will be in block 2
 
     fclose(disk);
 }
 
 int main()
 {
+    printf("\n");
     InitLLFS();
-    Touch("first_file.txt");
-    Touch("sample_file");
+
+    Mkdir("var", "/");
+    Touch("first_file.txt", "/var/tmp/");
+    char* path = "/var";
+    Touch("sample_file", path);
+    
+    printf("\n");
 
     FILE* fp = fopen("sample", "rb");
     fseek(fp, 0, SEEK_END);
@@ -348,12 +413,12 @@ int main()
     fseek(fp, 0, SEEK_SET);
     fread(content, size, 1, fp);
 
-    Write("sample_file", content, size);
-    Write("sample_file", "- by Jimmy Chen Chen", 20);
+    Write("sample_file", content, size, path);
+    Write("sample_file", "- by Jimmy Chen Chen", 20, path);
 
-    int file_size = get_size("sample_file");
+    int file_size = get_size("sample_file", path);
     char* buffer = (char*) malloc(file_size + 1);
-    Read("sample_file", buffer, file_size);
+    Read("sample_file", buffer, file_size, path);
     buffer[file_size] = '\0';
     printf("%s\n", buffer);
 
