@@ -213,10 +213,12 @@ short find_file_inode(FILE* disk, char* name)
     char* buffer = (char*) malloc(BLOCK_SIZE + 1);
     readFromFile(disk, buffer, directory_inode, BLOCK_SIZE);
 
+    
+
     return 4;
 }
 
-short Write(char* name, char* data) {
+short Write(char* name, char* data, int size) {
     FILE* disk = fopen("vdisk", "rb+");
     short inode_id = find_file_inode(disk, name);
     if (inode_id == 0) {
@@ -224,7 +226,7 @@ short Write(char* name, char* data) {
         fclose(disk);
         return 0;
     }
-    writeToFile(disk, data, inode_id, strlen(data));
+    writeToFile(disk, data, inode_id, size);
     fclose(disk);
     return inode_id;
 }
@@ -258,6 +260,23 @@ short Touch(char* name)
     fclose(disk);
     if (inode_id == 0) return 0;
     return inode_id;
+}
+
+int get_size(char* name)
+{
+    FILE* disk = fopen("vdisk", "rb+");
+    short inode_id = find_file_inode(disk, name);
+    if (inode_id == 0) {
+        fprintf(stderr, "%s\n", "File doesn't exist");
+        fclose(disk);
+        return 0;
+    }
+    char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
+    readBlock(disk, inode_id, inodeBuffer);
+    int current_file_size;
+    memcpy(&current_file_size, inodeBuffer, 4);
+    fclose(disk);
+    return current_file_size;
 }
 
 void InitLLFS()
@@ -305,16 +324,16 @@ int main()
     FILE* fp = fopen("sample", "rb");
     fseek(fp, 0, SEEK_END);
     int size = ftell(fp);
-    unsigned char* content = (unsigned char*) malloc(size + 1);
+    char* content = (char*) malloc(size);
     fseek(fp, 0, SEEK_SET);
     fread(content, size, 1, fp);
-    content[size] = '\0';
 
-    Write("sample_file", (char*) content);
-    Write("sample_file", "- by Jimmy Chen Chen"); // has size 20
+    Write("sample_file", content, size);
+    Write("sample_file", "- by Jimmy Chen Chen", 20);
 
-    char* buffer = (char*) malloc(BLOCK_SIZE + 1); // +1 for \0
-    Read("sample_file", buffer, BLOCK_SIZE);
+    int file_size = get_size("sample_file");
+    char* buffer = (char*) malloc(file_size);
+    Read("sample_file", buffer, file_size);
     printf("%s\n", buffer);
 
     free(buffer);
