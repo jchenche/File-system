@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "File.h"
 
 #define BLOCK_SIZE 512
 #define NUM_BLOCKS 4096
@@ -260,36 +261,6 @@ short find_file_inode_with_parent(FILE* disk, char* name, char* path, short* par
     return find_inode(disk, name, directory_inode);
 }
 
-short Write(char* name, char* data, int size, char* path) {
-    FILE* disk = fopen("vdisk", "rb+");
-
-    short inode_id = find_file_inode(disk, name, path);
-    if (inode_id == 0) {
-        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
-        fclose(disk);
-        return 0;
-    }
-    writeToFile(disk, data, inode_id, size);
-
-    fclose(disk);
-    return inode_id;
-}
-
-short Read(char* name, char* buffer, int size, char* path) {
-    FILE* disk = fopen("vdisk", "rb+");
-
-    short inode_id = find_file_inode(disk, name, path);
-    if (inode_id == 0) {
-        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
-        fclose(disk);
-        return 0;
-    }
-    readFromFile(disk, buffer, inode_id, size);
-
-    fclose(disk);
-    return inode_id;
-}
-
 int name_collision(FILE* disk, short directory_inode, char* name)
 {
     if (find_inode(disk, name, directory_inode) == 0) {
@@ -402,11 +373,12 @@ short deleteFile(FILE* disk, char* name, int type, char* path)
 
     char* buffer = (char*) malloc(dir_file_size);
     readFromFile(disk, buffer, parent_dir_inode, dir_file_size);
-
+    
     char* temp = buffer;
     for(int i = 0; i < dir_file_size; ) {
         if (memcmp(temp + 1, name, strlen(name) + 1) == 0) {
-            memcpy(temp, temp + 32, dir_file_size - 32 * (i + 1)); // delete by shifting left
+            if (i + 32 != dir_file_size)
+                memcpy(temp, temp + 32, dir_file_size - 32 * (i + 1)); // delete by shifting left
             break;
         }
         i += 32;
@@ -430,6 +402,38 @@ short deleteFile(FILE* disk, char* name, int type, char* path)
 
     free(buffer);
     free(inodeBuffer);
+    return inode_id;
+}
+
+short Read(char* name, char* buffer, int size, char* path)
+{
+    FILE* disk = fopen("vdisk", "rb+");
+
+    short inode_id = find_file_inode(disk, name, path);
+    if (inode_id == 0) {
+        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
+        fclose(disk);
+        return 0;
+    }
+    readFromFile(disk, buffer, inode_id, size);
+
+    fclose(disk);
+    return inode_id;
+}
+
+short Write(char* name, char* data, int size, char* path)
+{
+    FILE* disk = fopen("vdisk", "rb+");
+
+    short inode_id = find_file_inode(disk, name, path);
+    if (inode_id == 0) {
+        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
+        fclose(disk);
+        return 0;
+    }
+    writeToFile(disk, data, inode_id, size);
+
+    fclose(disk);
     return inode_id;
 }
 
@@ -469,24 +473,6 @@ short Touch(char* name, char* path)
     return inode_id;
 }
 
-int get_size(char* name, char* path) // Testing function
-{
-    FILE* disk = fopen("vdisk", "rb+");
-    short inode_id = find_file_inode(disk, name, path);
-    if (inode_id == 0) {
-        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
-        fclose(disk);
-        return 0;
-    }
-    char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
-    readBlock(disk, inode_id, inodeBuffer);
-    int current_file_size;
-    memcpy(&current_file_size, inodeBuffer, 4);
-    free(inodeBuffer);
-    fclose(disk);
-    return current_file_size;
-}
-
 void InitLLFS()
 {
     /* --- Initialize --- */
@@ -523,54 +509,70 @@ void InitLLFS()
     fclose(disk);
 }
 
-int main()
+int get_size(char* name, char* path) // Testing function
 {
-    printf("\n");
-    InitLLFS();
-
-    Mkdir("var", "/");
-    Touch("first_file.txt", "/var/tmp/");
-    char* path = "/var";
-    Touch("sample_file", path);
-    Touch("hello", path);
-
-    printf("\n");
-
-    FILE* fp = fopen("sample", "rb");
-    fseek(fp, 0, SEEK_END);
-    int size = ftell(fp);
-    char* content = (char*) malloc(size);
-    fseek(fp, 0, SEEK_SET);
-    fread(content, size, 1, fp);
-
-    Rm("var", "/");
-
-    Write("sample_file", content, size, path);
-    Write("sample_file", "- by Jimmy Chen Chen", 20, path);
-    Rm("sample_file", path);
-
-    int file_size = get_size("sample_file", path);
-    char* buffer = (char*) malloc(file_size + 1);
-    Read("sample_file", buffer, file_size, path);
-    buffer[file_size] = '\0';
-    printf("%s\n", buffer);
-
-
-    Rmdir("var", "/");
-    
-
-    Touch("sample_file2", path);
-    Write("sample_file2", "Inserted after deletion!!!", 26, path);
-
-    file_size = get_size("sample_file2", path);
-    buffer = (char*) malloc(file_size + 1);
-    Read("sample_file2", buffer, file_size, path);
-    buffer[file_size] = '\0';
-    printf("%s\n", buffer);
-
-
-    free(buffer);
-    free(content);
-    fclose(fp);
-    return 0;
+    FILE* disk = fopen("vdisk", "rb+");
+    short inode_id = find_file_inode(disk, name, path);
+    if (inode_id == 0) {
+        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
+        fclose(disk);
+        return 0;
+    }
+    char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
+    readBlock(disk, inode_id, inodeBuffer);
+    int current_file_size;
+    memcpy(&current_file_size, inodeBuffer, 4);
+    free(inodeBuffer);
+    fclose(disk);
+    return current_file_size;
 }
+
+// int main()
+// {
+//     printf("\n");
+//     InitLLFS();
+
+//     Mkdir("var", "/");
+//     Touch("first_file.txt", "/var/tmp/");
+//     char* path = "/var";
+//     Touch("sample_file", path);
+//     Touch("hello", path);
+
+//     printf("\n");
+
+//     FILE* fp = fopen("sample", "rb");
+//     fseek(fp, 0, SEEK_END);
+//     int size = ftell(fp);
+//     char* content = (char*) malloc(size);
+//     fseek(fp, 0, SEEK_SET);
+//     fread(content, size, 1, fp);
+
+//     Rm("var", "/");
+
+//     Write("sample_file", content, size, path);
+//     Write("sample_file", "- by Jimmy Chen Chen", 20, path);
+//     Rm("sample_file", path);
+
+//     int file_size = get_size("sample_file", path);
+//     char* buffer = (char*) malloc(file_size + 1);
+//     Read("sample_file", buffer, file_size, path);
+//     buffer[file_size] = '\0';
+//     printf("%s\n\n", buffer);
+
+
+
+//     Touch("sample_file2", path);
+//     Write("sample_file2", "Inserted after deletion!!!", 26, path);
+
+//     file_size = get_size("sample_file2", path);
+//     buffer = (char*) malloc(file_size + 1);
+//     Read("sample_file2", buffer, file_size, path);
+//     buffer[file_size] = '\0';
+//     printf("%s\n", buffer);
+
+
+//     free(buffer);
+//     free(content);
+//     fclose(fp);
+//     return 0;
+// }
