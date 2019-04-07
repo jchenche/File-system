@@ -229,7 +229,7 @@ short walk_path(FILE* disk, char* _path)
     while(token != NULL) {
         directory_inode = find_inode(disk, token, directory_inode);
         if (directory_inode == 0) {
-            fprintf(stderr, "Directory named %s doesn't exist\n", token);
+            fprintf(stderr, "Directory named %s doesn't exist in %s\n", token, path);
             free(path);
             return 0;
         }
@@ -265,7 +265,7 @@ short Write(char* name, char* data, int size, char* path) {
 
     short inode_id = find_file_inode(disk, name, path);
     if (inode_id == 0) {
-        fprintf(stderr, "%s\n", "File doesn't exist");
+        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
         fclose(disk);
         return 0;
     }
@@ -280,7 +280,7 @@ short Read(char* name, char* buffer, int size, char* path) {
 
     short inode_id = find_file_inode(disk, name, path);
     if (inode_id == 0) {
-        fprintf(stderr, "%s\n", "File doesn't exist");
+        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
         fclose(disk);
         return 0;
     }
@@ -295,7 +295,7 @@ int name_collision(FILE* disk, short directory_inode, char* name)
     if (find_inode(disk, name, directory_inode) == 0) {
         return 0;
     } else {
-        fprintf(stderr, "%s\n", "There's a name collision");
+        fprintf(stderr, "There's a name collision with %s\n", name);
         return 1;
     }
 }
@@ -316,7 +316,7 @@ short createFile(FILE* disk, char* name, int type, char* path)
     }
 
     /* --- Create a dir entry in the given dir --- */
-    if (inode_id != ROOT_INODE) { // root dir doesn't need the code below
+    if ((memcmp(name, "/", 2) != 0)) { // root dir doesn't need the code below
         short directory_inode = walk_path(disk, path);
         if (directory_inode == 0 || name_collision(disk, directory_inode, name)) {
             deallocate_block(disk, inode_id);
@@ -345,25 +345,47 @@ short createFile(FILE* disk, char* name, int type, char* path)
 
 short deleteFile(FILE* disk, char* name, int type, char* path)
 {
+    if (memcmp(name, "/", 2) == 0) {
+        fprintf(stderr, "%s\n", "Can't delete root directory");
+        return 0;
+    }
+
     short parent_dir_inode = ROOT_INODE;
     short inode_id = find_file_inode_with_parent(disk, name, path, &parent_dir_inode);
     if (inode_id == 0) {
-        fprintf(stderr, "%s\n", "File doesn't exist");
-        fclose(disk);
+        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
         return 0;
     }
 
     char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
     int file_size;
+    int file_type;
     short fileBlockNumber;
     int lastDataBlock;
 
     readBlock(disk, inode_id, inodeBuffer);
     memcpy(&file_size, inodeBuffer, 4);
+    memcpy(&file_type, inodeBuffer + 4, 4);
 
-    /* Check if it's a directory or file */
-
-
+    /* Check if it's a directory or a flat file */
+    if (type == 0) {
+        if (file_type != type) {
+            fprintf(stderr, "%s is not a directory\n", name);
+            free(inodeBuffer);
+            return 0;
+        }
+        if (file_size != 0) {
+            fprintf(stderr, "The directory %s contains files\n", name);
+            free(inodeBuffer);
+            return 0;
+        }
+    } else {
+        if (file_type != type) {
+            fprintf(stderr, "%s is a directory\n", name);
+            free(inodeBuffer);
+            return 0;
+        }
+    }
 
     /* Deallocate the corresponding data blocks and its inode block */
     lastDataBlock = (int) (file_size / BLOCK_SIZE);
@@ -411,6 +433,15 @@ short deleteFile(FILE* disk, char* name, int type, char* path)
     return inode_id;
 }
 
+short Rmdir(char* name, char* path)
+{
+    FILE* disk = fopen("vdisk", "rb+");
+    short inode_id = deleteFile(disk, name, 0, path);
+    fclose(disk);
+    if (inode_id == 0) return 0;
+    return inode_id;
+}
+
 short Rm(char* name, char* path)
 {
     FILE* disk = fopen("vdisk", "rb+");
@@ -443,7 +474,7 @@ int get_size(char* name, char* path) // Testing function
     FILE* disk = fopen("vdisk", "rb+");
     short inode_id = find_file_inode(disk, name, path);
     if (inode_id == 0) {
-        fprintf(stderr, "%s\n", "File doesn't exist");
+        fprintf(stderr, "File %s doesn't exist in %s\n", name, path);
         fclose(disk);
         return 0;
     }
@@ -487,7 +518,7 @@ void InitLLFS()
     free(buffer);
 
     /* --- Create root directory --- */
-    createFile(disk, NULL, 0, NULL); // its inode_id will be ROOT_INODE
+    createFile(disk, "/", 0, NULL); // its inode_id will be ROOT_INODE
 
     fclose(disk);
 }
@@ -512,17 +543,31 @@ int main()
     fseek(fp, 0, SEEK_SET);
     fread(content, size, 1, fp);
 
+    Rm("var", "/");
+
     Write("sample_file", content, size, path);
     Write("sample_file", "- by Jimmy Chen Chen", 20, path);
     Rm("sample_file", path);
-    Touch("sample_file", path);
-    Write("sample_file", "Inserted after deletion!!!", 26, path);
 
     int file_size = get_size("sample_file", path);
     char* buffer = (char*) malloc(file_size + 1);
     Read("sample_file", buffer, file_size, path);
     buffer[file_size] = '\0';
     printf("%s\n", buffer);
+
+
+    Rmdir("var", "/");
+    
+
+    Touch("sample_file2", path);
+    Write("sample_file2", "Inserted after deletion!!!", 26, path);
+
+    file_size = get_size("sample_file2", path);
+    buffer = (char*) malloc(file_size + 1);
+    Read("sample_file2", buffer, file_size, path);
+    buffer[file_size] = '\0';
+    printf("%s\n", buffer);
+
 
     free(buffer);
     free(content);
