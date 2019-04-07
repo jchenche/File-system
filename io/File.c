@@ -12,10 +12,10 @@ void readBlock(FILE* disk, int blockNum, char* buffer)
     fread(buffer, BLOCK_SIZE, 1, disk);
 }
 
-void writeBlock(FILE* disk, int blockNum, char* data, int size)
+void writeBlock(FILE* disk, int blockNum, char* data)
 {
     fseek(disk, blockNum * BLOCK_SIZE, SEEK_SET);
-    fwrite(data, size, 1, disk);
+    fwrite(data, BLOCK_SIZE, 1, disk);
 }
 
 short find_bit_one(int c)
@@ -50,7 +50,7 @@ short find_available_block(FILE* disk, int data_type)
         c = buffer[i];
         if ((bit_one_num = find_bit_one(c)) != -1) {
             buffer[i] = c & (~(0x80 >> bit_one_num)); // set to 0 now
-            writeBlock(disk, 1, buffer, BLOCK_SIZE);
+            writeBlock(disk, 1, buffer);
             free(buffer);
             return i * 8 + bit_one_num;
         }
@@ -67,7 +67,7 @@ void deallocate_block(FILE* disk, short blockNum)
     char* buffer = (char*) malloc(BLOCK_SIZE);
     readBlock(disk, 1, buffer);
     buffer[byte_num] = (buffer[byte_num]) | (0x80 >> bit_num);
-    writeBlock(disk, 1, buffer, BLOCK_SIZE);
+    writeBlock(disk, 1, buffer);
     free(buffer);
 }
 
@@ -92,11 +92,11 @@ int writeToFile(FILE* disk, char* data, short inode_id, int size)
     readBlock(disk, fileBlockNumber, buffer);
     if (remaining_size < 0) {
         memcpy(buffer + (current_file_size % BLOCK_SIZE), data, size);
-        writeBlock(disk, fileBlockNumber, buffer, BLOCK_SIZE);
+        writeBlock(disk, fileBlockNumber, buffer);
     }
     else {
         memcpy(buffer + (current_file_size % BLOCK_SIZE), data, last_block_bytes_left);
-        writeBlock(disk, fileBlockNumber, buffer, BLOCK_SIZE);
+        writeBlock(disk, fileBlockNumber, buffer);
     }
 
     /* --- Write file data to new blocks --- */
@@ -116,12 +116,12 @@ int writeToFile(FILE* disk, char* data, short inode_id, int size)
             if (remaining_size > 0) {
                 if (i != num_new_blocks) {
                     memcpy(buffer, data, BLOCK_SIZE);
-                    writeBlock(disk, newDataBlock, buffer, BLOCK_SIZE);
+                    writeBlock(disk, newDataBlock, buffer);
                     data += BLOCK_SIZE;
                     remaining_size -= BLOCK_SIZE;
                 } else {
                     memcpy(buffer, data, remaining_size);
-                    writeBlock(disk, newDataBlock, buffer, remaining_size);
+                    writeBlock(disk, newDataBlock, buffer);
                 }
             }
 
@@ -131,7 +131,7 @@ int writeToFile(FILE* disk, char* data, short inode_id, int size)
     /* --- Update file size and block status --- */
     current_file_size += size;
     memcpy(inodeBuffer, &current_file_size, 4);
-    writeBlock(disk, inode_id, inodeBuffer, BLOCK_SIZE);
+    writeBlock(disk, inode_id, inodeBuffer);
 
     free(inodeBuffer);
     free(buffer);
@@ -337,7 +337,7 @@ short createFile(FILE* disk, char* name, int type, char* path)
     memcpy(inode + 0, &file_size, 4);
     memcpy(inode + 4, &file_type, 4);
     memcpy(inode + 8, &dataBlock1, 2);
-    writeBlock(disk, inode_id, inode, 10);
+    writeBlock(disk, inode_id, inode);
     free(inode);
 
     return inode_id;
@@ -422,7 +422,7 @@ short deleteFile(FILE* disk, char* name, int type, char* path)
 
     int zero = 0;
     memcpy(inodeBuffer, &zero, 4); // make the file size 0 for rewrite
-    writeBlock(disk, parent_dir_inode, inodeBuffer, BLOCK_SIZE);
+    writeBlock(disk, parent_dir_inode, inodeBuffer);
 
     dir_file_size -= 32;
     writeToFile(disk, buffer, parent_dir_inode, dir_file_size); // rewrite
@@ -507,14 +507,14 @@ void InitLLFS()
     memcpy(buffer + 0, &magic_num, 4);
     memcpy(buffer + 4, &num_blocks, 4);
     memcpy(buffer + 8, &num_inodes, 4);
-    writeBlock(disk, 0, buffer, 12);
+    writeBlock(disk, 0, buffer);
     free(buffer);
 
     /* --- Block 1 --- */
     buffer = (char*) malloc(BLOCK_SIZE);
     for (int i = 0; i < BLOCK_SIZE; i++) buffer[i] = (char) 0xFF;
     memset(buffer, 0x3F, 1); // reserved for superblock and bitmap block
-    writeBlock(disk, 1, buffer, BLOCK_SIZE);
+    writeBlock(disk, 1, buffer);
     free(buffer);
 
     /* --- Create root directory --- */
