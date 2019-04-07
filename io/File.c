@@ -146,10 +146,9 @@ int readFromFile(FILE* disk, char* data, short inode_id, int size)
 
     /* --- Find where to stop reading --- */
     int current_file_size;
-    int lastDataBlock;
     memcpy(&current_file_size, inodeBuffer, 4);
     if (current_file_size < size) size = current_file_size;
-    lastDataBlock = (int) (size / BLOCK_SIZE);
+    int lastDataBlock = (int) (size / BLOCK_SIZE);
 
     /* Read file data from blocks */
     short fileBlockNumber;
@@ -196,7 +195,7 @@ short find_inode(FILE* disk, char* name, short directory_inode)
     readFromFile(disk, buffer, directory_inode, size);
 
     short inode_id = 0;
-    for(int i = 0; i < size; i++) {
+    for(int i = 0; i < size; ) {
         if (memcmp(buffer + 1, name, strlen(name) + 1) == 0) {
             memcpy(&inode_id, buffer, 1);
             break;
@@ -355,14 +354,59 @@ short deleteFile(FILE* disk, char* name, int type, char* path)
     }
 
     char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
+    int file_size;
+    short fileBlockNumber;
+    int lastDataBlock;
+
     readBlock(disk, inode_id, inodeBuffer);
+    memcpy(&file_size, inodeBuffer, 4);
 
-    int current_file_size;
-    memcpy(&current_file_size, inodeBuffer, 4);
-
-
+    /* Check if it's a directory or file */
 
 
+
+    /* Deallocate the corresponding data blocks and its inode block */
+    lastDataBlock = (int) (file_size / BLOCK_SIZE);
+    for(int i = 0; i <= lastDataBlock; i++) {
+        memcpy(&fileBlockNumber, (inodeBuffer + 8) + 2 * i, 2);
+        deallocate_block(disk, fileBlockNumber);
+    }
+    deallocate_block(disk, inode_id);
+
+    /* Delete the corresponding entry in the parent dir */
+    int dir_file_size;
+    readBlock(disk, parent_dir_inode, inodeBuffer);
+    memcpy(&dir_file_size, inodeBuffer, 4);
+
+    char* buffer = (char*) malloc(dir_file_size);
+    readFromFile(disk, buffer, parent_dir_inode, dir_file_size);
+
+    char* temp = buffer;
+    for(int i = 0; i < dir_file_size; ) {
+        if (memcmp(temp + 1, name, strlen(name) + 1) == 0) {
+            memcpy(temp, temp + 32, dir_file_size - 32 * (i + 1)); // delete by shifting left
+            break;
+        }
+        i += 32;
+        temp += 32;
+    }
+
+    /* Rewrite entries in the parent dir */
+    lastDataBlock = (int) (dir_file_size / BLOCK_SIZE);
+    for(int i = 1; i <= lastDataBlock; i++) { // deallocate all blocks except the first one
+        memcpy(&fileBlockNumber, (inodeBuffer + 8) + 2 * i, 2);
+        deallocate_block(disk, fileBlockNumber);
+    }
+
+    int zero = 0;
+    memcpy(inodeBuffer, &zero, 4); // make the file size 0 for rewrite
+    writeBlock(disk, parent_dir_inode, inodeBuffer, BLOCK_SIZE);
+
+    dir_file_size -= 32;
+    writeToFile(disk, buffer, parent_dir_inode, dir_file_size); // rewrite
+
+
+    free(buffer);
     free(inodeBuffer);
     return inode_id;
 }
@@ -443,7 +487,7 @@ void InitLLFS()
     free(buffer);
 
     /* --- Create root directory --- */
-    createFile(disk, NULL, 0, NULL);
+    createFile(disk, NULL, 0, NULL); // its inode_id will be ROOT_INODE
 
     fclose(disk);
 }
@@ -457,6 +501,7 @@ int main()
     Touch("first_file.txt", "/var/tmp/");
     char* path = "/var";
     Touch("sample_file", path);
+    Touch("hello", path);
 
     printf("\n");
 
@@ -469,8 +514,9 @@ int main()
 
     Write("sample_file", content, size, path);
     Write("sample_file", "- by Jimmy Chen Chen", 20, path);
-
-    // Rm("sample_file", path);
+    Rm("sample_file", path);
+    Touch("sample_file", path);
+    Write("sample_file", "Inserted after deletion!!!", 26, path);
 
     int file_size = get_size("sample_file", path);
     char* buffer = (char*) malloc(file_size + 1);
