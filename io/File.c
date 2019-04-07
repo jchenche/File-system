@@ -375,10 +375,10 @@ short deleteFile(FILE* disk, char* name, int type, char* path)
     readFromFile(disk, buffer, parent_dir_inode, dir_file_size);
     
     char* temp = buffer;
-    for(int i = 0; i < dir_file_size; ) {
+    for(int i = 0, offset = 0; i < dir_file_size; offset++) {
         if (memcmp(temp + 1, name, strlen(name) + 1) == 0) {
             if (i + 32 != dir_file_size)
-                memcpy(temp, temp + 32, dir_file_size - 32 * (i + 1)); // delete by shifting left
+                memcpy(temp, temp + 32, dir_file_size - 32 * (offset + 1)); // delete by shifting left
             break;
         }
         i += 32;
