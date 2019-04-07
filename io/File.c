@@ -331,7 +331,7 @@ short createFile(FILE* disk, char* name, int type, char* path)
     }
 
     /* --- Insert default inode data --- */
-    char* inode = (char*) malloc(10);
+    char* inode = (char*) malloc(BLOCK_SIZE);
     int file_size = 0;
     int file_type = type; // 0 for directory, 1 for flat file
     memcpy(inode + 0, &file_size, 4);
