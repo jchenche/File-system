@@ -124,6 +124,7 @@ void parse_execute(char** tokens, int num_words)
     else if (strcmp(*tokens, "append") == 0) _append(num_words, tokens);
     else if (strcmp(*tokens, "cat") == 0)       _cat(num_words, tokens);
     else if (strcmp(*tokens, "ls") == 0)         _ls(num_words, tokens);
+    else fprintf(stderr, "%s\n", "Wrong command, refer to README.md for commands");
 }
 
 char* read_input(FILE* fp)
