@@ -1,0 +1,15 @@
+init
+mkdir var /
+touch first_file /var/tmp
+touch sample_file /
+touch hello /
+rm var /
+rm sample_file /
+touch sample_file2 /var
+append sample sample_file2 /var
+cat sample_file2 /var
+mkdir var /
+mkdir tmp /var
+rmdir var /
+rmdir tmp /var
+ls
