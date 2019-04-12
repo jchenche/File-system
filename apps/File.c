@@ -306,8 +306,8 @@ short createFile(FILE* disk, char* name, int type, char* path)
         fprintf(stderr, "%s\n", "No more inode blocks available");
         return 0;
     }
-    memcpy(transBuffer + 13, &inode_id, 2);
-    writeBlock(disk, 0, transBuffer);
+    memcpy(transBuffer + 13, &inode_id, 2); // for filesystem recovery
+    writeBlock(disk, 0, transBuffer);       // for filesystem recovery
 
     short dataBlock1 = find_available_block(disk, 1);
     if (dataBlock1 == 0) {
@@ -315,8 +315,8 @@ short createFile(FILE* disk, char* name, int type, char* path)
         deallocate_block(disk, inode_id);
         return 0;
     }
-    memcpy(transBuffer + 15, &dataBlock1, 2);
-    writeBlock(disk, 0, transBuffer);
+    memcpy(transBuffer + 15, &dataBlock1, 2); // for filesystem recovery
+    writeBlock(disk, 0, transBuffer);         // for filesystem recovery
 
     /* --- Insert default inode data --- */
     char* inode = (char*) malloc(BLOCK_SIZE);
