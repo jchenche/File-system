@@ -6,11 +6,11 @@ all: kapish
 kapish: kapish.o File.o
 	$(CC) kapish.o File.o -o kapish
 
-kapish.o: kapish.c File.h
+kapish.o: kapish.c ../io/File.h
 	$(CC) $(CFLAGS) kapish.c
 
-File.o: File.c File.h
-	$(CC) $(CFLAGS) File.c
+File.o: ../io/File.c ../io/File.h
+	$(CC) $(CFLAGS) ../io/File.c
 
 clean:
 	rm *.o kapish

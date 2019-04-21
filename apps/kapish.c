@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <pwd.h>
-#include "File.h"
+#include "../io/File.h"
 
 #define INPUT_SIZE 512
 #define MAX_WORDS 20
@@ -78,7 +78,7 @@ void _ls(int argc, char** argv)
 {
     if (argc == 1) {
 
-        FILE* disk = fopen("vdisk", "rb+");
+        FILE* disk = fopen("../disk/vdisk", "rb+");
         char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
         int file_size;
         readBlock(disk, ROOT_INODE, inodeBuffer);
