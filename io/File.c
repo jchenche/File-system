@@ -85,6 +85,12 @@ int writeToFile(FILE* disk, char* data, short inode_id, int size)
     short fileBlockNumber;
     memcpy(&fileBlockNumber, (inodeBuffer + 8) + 2 * dataBlockOffset, 2);
 
+    /* Make sure it doesn't exceed the max file size */
+    if ((current_file_size + size) > 129024) {
+        fprintf(stderr, "%s\n", "Exceeded the max file size (129024)");
+        return 0;
+    }
+
     /* Some useful numbers */
     int last_block_bytes_left = BLOCK_SIZE - (current_file_size % BLOCK_SIZE);
     int remaining_size = size - last_block_bytes_left;
