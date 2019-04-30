@@ -1,9 +1,9 @@
 # File system assignment
-- Name            : Jimmy Chen Chen  
-- Grades acquired : 100%  
-- Class           : CSC360 (Operating Systems).
-- Convention      : returning 0 and 1 usually denotes failure and success respectively  
-- Type            : Flavour of the original simple UNIX filesystem  
+- Name: Jimmy Chen Chen  
+- Grades acquired: 100%  
+- Class: CSC360 (Operating Systems).
+- Convention: returning 0 and 1 usually denotes failure and success respectively  
+- Type: Flavour of the original UNIX filesystem  
 
 # HOW TO RUN:
 - Only 2 commands to run. Go to folder /apps and type `make` then `./kapish`  
