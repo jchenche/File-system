@@ -3,11 +3,9 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <signal.h>
 #include <sys/types.h>
-#include <sys/wait.h>
-#include <pwd.h>
 #include "../io/File.h"
+#include "../disk/diskIO.h"
 
 #define INPUT_SIZE 512
 #define MAX_WORDS 20

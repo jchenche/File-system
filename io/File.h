@@ -2,8 +2,6 @@
 #define __File_h__
 
 // Internal library
-void  readBlock(FILE* disk, int blockNum, char* buffer);
-void  writeBlock(FILE* disk, int blockNum, char* data);
 short find_bit_one(int c);
 short find_available_block(FILE* disk, int data_type);
 void  deallocate_block(FILE* disk, short blockNum);
