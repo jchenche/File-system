@@ -1,6 +1,6 @@
 # File system assignment
 - Name: Jimmy Chen Chen  
-- Grades acquired: 100%  
+- Grade acquired: 100%  
 - Class: CSC360 (Operating Systems).
 - Convention: returning 0 and 1 usually denotes failure and success respectively  
 - Type: Flavour of the original UNIX filesystem  
