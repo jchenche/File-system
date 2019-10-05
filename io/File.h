@@ -26,8 +26,6 @@ short Rm(char* name, char* path);
 short Mkdir(char* name, char* path);
 short Touch(char* name, char* path);
 void  InitLLFS();
-
-// Testing functions
 int   get_size(char* name, char* path);
 
 #endif
