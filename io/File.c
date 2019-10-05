@@ -551,7 +551,7 @@ void InitLLFS()
     fclose(disk);
 }
 
-int get_size(char* name, char* path) // Testing function
+int get_size(char* name, char* path)
 {
     FILE* disk = fopen("../disk/vdisk", "rb+");
     short inode_id = find_file_inode(disk, name, path);
