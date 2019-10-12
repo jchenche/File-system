@@ -7,11 +7,9 @@
 
 # HOW TO RUN:
 - Only 2 commands to run. Go to folder /apps and type `make` then `./kapish`  
-- All the functionalities are in File.c and kapish.c will test them all  
-- kapish.c acts as the shell script, test01.c and test02.c  
-- When kapish first runs, it'll first read and execute some test commands in a file named test01 (one of them is init)  
+- When kapish runs with the --test flag, it'll first read and execute some test commands in a test file  
 - Diagnostics are all encoded inside File.c and kapish.c (run more commands to test further)  
-- path must be absolute and always start with /  
+- paths must be absolute and always start with /  
 
 # USING THE KAPISH SHELL SCRIPT:
 - `init` will create and initialize the disk  
@@ -19,7 +17,7 @@
 - `rm [filename] [path]`  
 - `mkdir [directory name] [path]`  
 - `rmdir [directory name] [path]`  
-- `append [src filename] [dest filename] [path]` will append data to dest from src. src must exist in the current directory (local machine) and dest must exist in path (in the filesystem)  
+- `append [src filename] [dest filename] [path]` will append data to dest from src. src must exist in the current directory (local machine) and dest must exist in path (in this filesystem)  
 - `cat [filename] [path]`  will read data from filename in path  
 - `ls [directory name] [path]` will list all the files of the directory within another directory given by path (typing just ls will list the files in the root directory). e.g `ls tmp /var` will list all the files in the directory named tmp that is inside the directory called var.  
 

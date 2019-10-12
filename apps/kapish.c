@@ -55,21 +55,23 @@ void _cat(int argc, char** argv)
 
 void _append(int argc, char** argv)
 {
-    if (argc == 1 || argc == 2) fprintf(stdout, "usage: append [src file name] [dest file name] [path]\n");
-    FILE* fp = fopen(argv[1], "rb");
-    if (fp == NULL) {
-        fprintf(stderr, "File named %s not found.\n", argv[1]);
-        return;
+    if (argc == 1 || argc == 2 || argc == 3) fprintf(stdout, "usage: append [src file name] [dest file name] [path]\n");
+    else {
+        FILE* fp = fopen(argv[1], "rb");
+        if (fp == NULL) {
+            fprintf(stderr, "File named %s not found.\n", argv[1]);
+            return;
+        }
+        fseek(fp, 0, SEEK_END);
+        int size = ftell(fp);
+        char* content = (char*) malloc(size);
+        fseek(fp, 0, SEEK_SET);
+        fread(content, size, 1, fp);
+        int rv = Write(argv[2], content, size, argv[3]);
+        if (rv == 0) fprintf(stderr, "%s\n", "Write file unsuccessful.");
+        free(content);
+        fclose(fp);
     }
-    fseek(fp, 0, SEEK_END);
-    int size = ftell(fp);
-    char* content = (char*) malloc(size);
-    fseek(fp, 0, SEEK_SET);
-    fread(content, size, 1, fp);
-    int rv = Write(argv[2], content, size, argv[3]);
-    if (rv == 0) fprintf(stderr, "%s\n", "Write file unsuccessful.");
-    free(content);
-    fclose(fp);
 }
 
 void _ls(int argc, char** argv)
@@ -225,9 +227,9 @@ void wait_for_command()
 
 }
 
-void read_file()
+void test_commands(char* test_file)
 {
-    FILE* fp = fopen("test01", "r");
+    FILE* fp = fopen(test_file, "r");
     if (fp == NULL)
     {
         fprintf(stderr, "Error reading file\n");
@@ -266,7 +268,11 @@ void read_file()
 
 int main(int argc, char** argv)
 {
-    read_file();
-    wait_for_command();
+    if (argc == 2)
+    {
+        if (strncmp(argv[1], "--test", 7) == 0) test_commands("test01");
+        else fprintf(stdout, "usage: ./kapish --test\n");
+    }
+    else wait_for_command();
     return 0;
 }
