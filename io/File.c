@@ -4,10 +4,6 @@
 #include "File.h"
 #include "../disk/diskIO.h"
 
-#define BLOCK_SIZE 512
-#define NUM_BLOCKS 4096
-#define ROOT_INODE 2
-
 short find_bit_one(int c)
 {
     /* Given a byte, find the first 1 bit starting from the left */
@@ -86,14 +82,9 @@ int writeToFile(FILE* disk, char* data, short inode_id, int size)
 
     /* --- Write file data to last block --- */
     readBlock(disk, fileBlockNumber, buffer);
-    if (remaining_size < 0) {
-        memcpy(buffer + (current_file_size % BLOCK_SIZE), data, size);
-        writeBlock(disk, fileBlockNumber, buffer);
-    }
-    else {
-        memcpy(buffer + (current_file_size % BLOCK_SIZE), data, last_block_bytes_left);
-        writeBlock(disk, fileBlockNumber, buffer);
-    }
+    if (remaining_size < 0) memcpy(buffer + (current_file_size % BLOCK_SIZE), data, size);
+    else                    memcpy(buffer + (current_file_size % BLOCK_SIZE), data, last_block_bytes_left);
+    writeBlock(disk, fileBlockNumber, buffer);
 
     /* --- Write file data to new blocks --- */
     if (remaining_size >= 0) {
@@ -444,7 +435,7 @@ short deleteFile(FILE* disk, char* name, int type, char* path)
 
 short Read(char* name, char* buffer, int size, char* path)
 {
-    FILE* disk = fopen("../disk/vdisk", "rb+");
+    FILE* disk = fopen(PATH_TO_VDISK, "rb+");
 
     short inode_id = find_file_inode(disk, name, path);
     if (inode_id == 0) {
@@ -460,7 +451,7 @@ short Read(char* name, char* buffer, int size, char* path)
 
 short Write(char* name, char* data, int size, char* path)
 {
-    FILE* disk = fopen("../disk/vdisk", "rb+");
+    FILE* disk = fopen(PATH_TO_VDISK, "rb+");
 
     short inode_id = find_file_inode(disk, name, path);
     if (inode_id == 0) {
@@ -476,56 +467,52 @@ short Write(char* name, char* data, int size, char* path)
 
 short Rmdir(char* name, char* path)
 {
-    FILE* disk = fopen("../disk/vdisk", "rb+");
+    FILE* disk = fopen(PATH_TO_VDISK, "rb+");
     short inode_id = deleteFile(disk, name, 0, path);
     fclose(disk);
-    if (inode_id == 0) return 0;
     return inode_id;
 }
 
 short Rm(char* name, char* path)
 {
-    FILE* disk = fopen("../disk/vdisk", "rb+");
+    FILE* disk = fopen(PATH_TO_VDISK, "rb+");
     short inode_id = deleteFile(disk, name, 1, path);
     fclose(disk);
-    if (inode_id == 0) return 0;
     return inode_id;
 }
 
 short Mkdir(char* name, char* path)
 {
-    FILE* disk = fopen("../disk/vdisk", "rb+");
+    FILE* disk = fopen(PATH_TO_VDISK, "rb+");
     short inode_id = createFile(disk, name, 0, path);
     fclose(disk);
-    if (inode_id == 0) return 0;
     return inode_id;
 }
 
 short Touch(char* name, char* path)
 {
-    FILE* disk = fopen("../disk/vdisk", "rb+");
+    FILE* disk = fopen(PATH_TO_VDISK, "rb+");
     short inode_id = createFile(disk, name, 1, path);
     fclose(disk);
-    if (inode_id == 0) return 0;
     return inode_id;
 }
 
 void InitLLFS()
 {
     /* --- Initialize --- */
-    FILE* disk = fopen("../disk/vdisk", "wb");
+    FILE* disk = fopen(PATH_TO_VDISK, "wb");
     char* init = calloc(BLOCK_SIZE * NUM_BLOCKS, 1);
-    fwrite(init, BLOCK_SIZE*NUM_BLOCKS, 1, disk);
+    fwrite(init, BLOCK_SIZE * NUM_BLOCKS, 1, disk);
     free(init);
     fclose(disk);
 
-    disk = fopen("../disk/vdisk", "rb+");
+    disk = fopen(PATH_TO_VDISK, "rb+");
     char* buffer;
 
     /* --- Block 0 --- */
     buffer = (char*) malloc(BLOCK_SIZE);
     int magic_num = 2019;
-    int num_blocks = 4096;
+    int num_blocks = NUM_BLOCKS;
     int num_inodes = 126;
     char transaction = 't'; // for filesystem recovery
     short blockNum = 0;     // for filesystem recovery
@@ -553,7 +540,7 @@ void InitLLFS()
 
 int get_size(char* name, char* path)
 {
-    FILE* disk = fopen("../disk/vdisk", "rb+");
+    FILE* disk = fopen(PATH_TO_VDISK, "rb+");
     short inode_id = find_file_inode(disk, name, path);
     if (inode_id == 0) {
         fprintf(stderr, "File %s doesn't exist in %s\n", name, path);

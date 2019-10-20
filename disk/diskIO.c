@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include "diskIO.h"
 
-#define BLOCK_SIZE 512
-#define NUM_BLOCKS 4096
-
 void readBlock(FILE* disk, int blockNum, char* buffer)
 {
     fseek(disk, blockNum * BLOCK_SIZE, SEEK_SET);

@@ -1,6 +1,9 @@
 #ifndef __File_h__
 #define __File_h__
 
+#define ROOT_INODE 2
+#define PATH_TO_VDISK "../disk/vdisk"
+
 // Internal library
 short find_bit_one(int c);
 short find_available_block(FILE* disk, int data_type);

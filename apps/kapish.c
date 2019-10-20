@@ -10,8 +10,6 @@
 #define INPUT_SIZE 512
 #define MAX_WORDS 20
 #define WORD_SIZE 50
-#define BLOCK_SIZE 512
-#define ROOT_INODE 2
 
 void _touch(int argc, char** argv)
 {
@@ -78,7 +76,7 @@ void _ls(int argc, char** argv)
 {
     if (argc == 1) {
 
-        FILE* disk = fopen("../disk/vdisk", "rb+");
+        FILE* disk = fopen(PATH_TO_VDISK, "rb+");
         char* inodeBuffer = (char*) malloc(BLOCK_SIZE);
         int file_size;
         readBlock(disk, ROOT_INODE, inodeBuffer);
