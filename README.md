@@ -3,15 +3,14 @@
 - Grade acquired: 100%  
 - Class: CSC360 (Operating Systems).
 - Convention: returning 0 and 1 usually denotes failure and success respectively  
-- Type: Flavour of the original UNIX filesystem  
+- Type: Flavour of the original UNIX filesystem (partitioned in 512 bytes blocks)  
 
 # HOW TO RUN:
 - Only 2 commands to run. Go to folder /apps and type `make` then `./kapish`  
-- When kapish runs with the --test flag, it'll first read and execute some test commands in a test file  
-- Diagnostics are all encoded inside File.c and kapish.c (run more commands to test further)  
+- When kapish runs with the --test flag, it'll read and execute some test commands in a test file  
 - paths must be absolute and always start with /  
 
-# USING THE KAPISH SHELL SCRIPT:
+# USING THE KAPISH SHELL:
 - `init` will create and initialize the disk  
 - `touch [filename] [path]` will create a file in a directory specified by path. e.g `touch hello /var/tmp` will create the file named hello in directory tmp. Directories var and tmp must exist (in the suggested tree structure /var/tmp)  
 - `rm [filename] [path]`  
@@ -19,10 +18,10 @@
 - `rmdir [directory name] [path]`  
 - `append [src filename] [dest filename] [path]` will append data to dest from src. src must exist in the current directory (local machine) and dest must exist in path (in this filesystem)  
 - `cat [filename] [path]`  will read data from filename in path  
-- `ls [directory name] [path]` will list all the files of the directory within another directory given by path (typing just ls will list the files in the root directory). e.g `ls tmp /var` will list all the files in the directory named tmp that is inside the directory called var.  
+- `ls [directory name] [path]` will list all the files of the directory within another directory given by path (typing just ls will list the files in the root directory). e.g `ls tmp /var` will list all the files in the directory named tmp that is inside the directory called var which is inside the root directory.  
 
 # DESIGN DECISIONS:
-- inode_id ranges from 2 to 127 each occupying one block. There're 126 inodes because it makes working with the bitmap vector easier as the first 2 blocks are for the superblock and bitmap block respectively, so there are 128 (divisible by 8) blocks for metadata.  
+- inode_id ranges from 2 to 127 each occupying one block. There're 126 inodes because it makes working with the bitmap vector easier as the first 2 blocks are for the superblock (block 0) and bitmap block (block 1) respectively, so there are 128 (divisible by 8) blocks for metadata.  
 - Drop indirect pointers because we only have 4096 blocks anyways. inodes will instead contain 252 direct pointers because I have an entire block to use anyways. File max size will then be 512 * 252 = 129024 bytes which is about 1/16 of disk space.   
 - For file types, 0 is used for directories and 1 is used for flat files.  
 - For the bitmap vector block, 0 means occupied and 1 means free.  
