@@ -22,7 +22,7 @@
 
 # DESIGN DECISIONS:
 - inode_id ranges from 2 to 127 each occupying one block. There're 126 inodes because it makes working with the bitmap vector easier as the first 2 blocks are for the superblock (block 0) and bitmap block (block 1) respectively, so there are 128 (divisible by 8) blocks for metadata.  
-- Drop indirect pointers because we only have 4096 blocks anyways. inodes will instead contain 252 direct pointers because I have an entire block to use anyways. File max size will then be 512 * 252 = 129024 bytes which is about 1/16 of disk space.   
+- Drop indirect pointers because we only have 4096 blocks anyways. inodes will instead contain 252 direct pointers (occupying 2 bytes each) because I have an entire block for each inode to use anyways. inodes first 8 bytes are for file size and file type, so 252 * 2 + 8 = 512 bytes. File max size will then be 512 * 252 = 129024 bytes which is about 1/16 of disk space.   
 - For file types, 0 is used for directories and 1 is used for flat files.  
 - For the bitmap vector block, 0 means occupied and 1 means free.  
 - When a file is created (flat or directory), it'll also allocate one data block for it. Deallocation of inode block and data block happens when there's an error in creating a file.  
