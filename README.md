@@ -10,6 +10,9 @@
 - When kapish runs with the --test flag, it'll read and execute some test commands in a test file  
 - paths must be absolute and always start with /  
 
+# DEMO:
+![](demo.gif)
+
 # USING THE KAPISH SHELL:
 - `init` will create and initialize the disk  
 - `touch [filename] [path]` will create a file in a directory specified by path. e.g `touch hello /var/tmp` will create the file named hello in directory tmp. Directories var and tmp must exist (in the suggested tree structure /var/tmp)  
