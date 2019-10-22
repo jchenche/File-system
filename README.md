@@ -11,6 +11,9 @@
 - paths must be absolute and always start with /  
 
 # DEMO:
+- Note that "sample" is a file that exists in the **/apps directory (outside of this filesystem)**, but "projects" exists in the **root directory of this filesystem**.  
+- Refer to the next section for available commands.  
+
 ![](demo.gif)
 
 # USING THE KAPISH SHELL:
@@ -19,7 +22,7 @@
 - `rm [filename] [path]`  
 - `mkdir [directory name] [path]`  
 - `rmdir [directory name] [path]`  
-- `append [src filename] [dest filename] [path]` will append data to dest from src. src must exist in the current directory (local machine) and dest must exist in path (in this filesystem)  
+- `append [src filename] [dest filename] [path]` will append data from src to dest. src must exist in the current directory (local machine) and dest must exist in path (this filesystem)  
 - `cat [filename] [path]`  will read data from filename in path  
 - `ls [directory name] [path]` will list all the files of the directory within another directory given by path (typing just ls will list the files in the root directory). e.g `ls tmp /var` will list all the files in the directory named tmp that is inside the directory called var which is inside the root directory.  
 
