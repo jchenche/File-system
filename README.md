@@ -2,7 +2,7 @@
 - Name: Jimmy Chen Chen  
 - Grade acquired: 100%  
 - Class: CSC360 (Operating Systems).
-- Convention: returning 0 and 1 usually denotes failure and success respectively  
+- Convention for this project: returning 0 and 1 usually denotes failure and success respectively  
 - Type: Flavour of the original UNIX filesystem (partitioned in 512 bytes blocks)  
 
 # HOW TO RUN:
@@ -27,7 +27,7 @@
 - `ls [directory name] [path]` will list all the files of the directory within another directory given by path (typing just ls will list the files in the root directory). e.g `ls tmp /var` will list all the files in the directory named tmp that is inside the directory called var which is inside the root directory.  
 
 # DESIGN DECISIONS:
-- inode_id ranges from 2 to 127 each occupying one block. There're 126 inodes because it makes working with the bitmap vector easier as the first 2 blocks are for the superblock (block 0) and bitmap block (block 1) respectively, so there are 128 (divisible by 8) blocks for metadata.  
+- The inode structure consists of the file size, file type, and pointers to the blocks that contain the data for the file. inode_id ranges from 2 to 127 each occupying one block. There're 126 inodes because it makes working with the bitmap vector easier as the first 2 blocks are for the superblock (block 0) and bitmap block (block 1) respectively, so there are 128 (divisible by 8) blocks for metadata.  
 - Drop indirect pointers because we only have 4096 blocks anyways. inodes will instead contain 252 direct pointers (occupying 2 bytes each) because I have an entire block for each inode to use anyways. inodes first 8 bytes are for file size and file type, so 252 * 2 + 8 = 512 bytes. File max size will then be 512 * 252 = 129024 bytes which is about 1/16 of disk space.   
 - For file types, 0 is used for directories and 1 is used for flat files.  
 - For the bitmap vector block, 0 means occupied and 1 means free.  
