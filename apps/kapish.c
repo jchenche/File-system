@@ -3,13 +3,58 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <pwd.h>
 #include "../io/File.h"
 #include "../disk/diskIO.h"
 
 #define INPUT_SIZE 512
 #define MAX_WORDS 20
 #define WORD_SIZE 50
+
+void _init(int argc, char** argv);
+void _touch(int argc, char** argv);
+void _rm(int argc, char** argv);
+void _mkdir(int argc, char** argv);
+void _rmdir(int argc, char** argv);
+void _append(int argc, char** argv);
+void _cat(int argc, char** argv);
+void _ls(int argc, char** argv);
+void _clear(int argc, char** argv);
+
+char* command_str[] = {
+    "init",
+    "touch",
+    "rm",
+    "mkdir",
+    "rmdir",
+    "append",
+    "cat",
+    "ls",
+    "clear"
+};
+void (*command_func[]) (int, char**) = {
+    &_init,
+    &_touch,
+    &_rm,
+    &_mkdir,
+    &_rmdir,
+    &_append,
+    &_cat,
+    &_ls,
+    &_clear
+};
+int num_commands()
+{
+  return sizeof(command_str) / sizeof(char*);
+}
+
+void _init(int argc, char** argv)
+{
+    InitLLFS();
+}
 
 void _touch(int argc, char** argv)
 {
@@ -53,7 +98,8 @@ void _cat(int argc, char** argv)
 
 void _append(int argc, char** argv)
 {
-    if (argc == 1 || argc == 2 || argc == 3) fprintf(stdout, "usage: append [src file name] [dest file name] [path]\n");
+    if (argc == 1 || argc == 2 || argc == 3)
+        fprintf(stdout, "usage: append [src file name] [dest file name] [path]\n");
     else {
         FILE* fp = fopen(argv[1], "rb");
         if (fp == NULL) {
@@ -112,17 +158,22 @@ void _ls(int argc, char** argv)
     }
 }
 
+void _clear(int argc, char** argv)
+{
+	pid_t p = fork();
+	if (p == 0) execvp(*argv, argv); /* Child */
+	else if (p > 0) wait(NULL);
+}
+
 void parse_execute(char** tokens, int num_words)
 {
-    if      (strcmp(*tokens, "init") == 0)  InitLLFS();
-    else if (strcmp(*tokens, "touch") == 0)   _touch(num_words, tokens);
-    else if (strcmp(*tokens, "rm") == 0)         _rm(num_words, tokens);
-    else if (strcmp(*tokens, "mkdir") == 0)   _mkdir(num_words, tokens);
-    else if (strcmp(*tokens, "rmdir") == 0)   _rmdir(num_words, tokens);
-    else if (strcmp(*tokens, "append") == 0) _append(num_words, tokens);
-    else if (strcmp(*tokens, "cat") == 0)       _cat(num_words, tokens);
-    else if (strcmp(*tokens, "ls") == 0)         _ls(num_words, tokens);
-    else fprintf(stderr, "%s\n", "Wrong command, refer to README.md for commands");
+    for(int i = 0; i < num_commands(); i++) {
+        if (strcmp(*tokens, command_str[i]) == 0) {
+            (*command_func[i])(num_words, tokens);
+            return;
+        }
+    }
+    fprintf(stderr, "%s\n", "Wrong command, refer to README.md for commands");
 }
 
 char* read_input(FILE* fp)
