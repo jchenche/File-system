@@ -13,6 +13,7 @@
 #define INPUT_SIZE 512
 #define MAX_WORDS 20
 #define WORD_SIZE 50
+#define TEST_FILE "tests.txt"
 
 void _init(int argc, char** argv);
 void _touch(int argc, char** argv);
@@ -48,7 +49,7 @@ void (*command_func[]) (int, char**) = {
 };
 int num_commands()
 {
-  return sizeof(command_str) / sizeof(char*);
+    return sizeof(command_str) / sizeof(char*);
 }
 
 void _init(int argc, char** argv)
@@ -186,31 +187,24 @@ char* read_input(FILE* fp)
     }
     int c;
     int pos = 0;
-    int leading_space_over = 0;
 
     while (1)
     {
-
         if (fp == NULL) c = getc(stdin);
-        else c = getc(fp);
+        else            c = getc(fp);
 
         if (c == EOF)
         {
             printf("\n");
             return NULL;
         }
-
         if (c == '\n')
         {
             line[pos] = '\0';
             break;
         }
-        else if (c != ' ' || leading_space_over)
-        {
-            line[pos] = c;
-            pos++;
-            leading_space_over = 1;
-        }
+
+        line[pos++] = c;
 
         if (pos >= INPUT_SIZE)
         {
@@ -276,9 +270,9 @@ void wait_for_command()
 
 }
 
-void test_commands(char* test_file)
+void test_commands()
 {
-    FILE* fp = fopen(test_file, "r");
+    FILE* fp = fopen(TEST_FILE, "r");
     if (fp == NULL)
     {
         fprintf(stderr, "Error reading file\n");
@@ -319,9 +313,10 @@ int main(int argc, char** argv)
 {
     if (argc == 2)
     {
-        if (strncmp(argv[1], "--test", 7) == 0) test_commands("test01");
-        else fprintf(stdout, "usage: ./kapish --test\n");
+        if (strncmp(argv[1], "--test", 7) == 0) test_commands();
+        else fprintf(stdout, "usage: ./kapish (or ./kapish --test)\n");
     }
+    else if (argc > 2) fprintf(stdout, "usage: ./kapish (or ./kapish --test)\n");
     else wait_for_command();
     return 0;
 }
