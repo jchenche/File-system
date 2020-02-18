@@ -1,4 +1,4 @@
-# File system assignment
+# File-system assignment
 - Name: Jimmy Chen Chen.  
 - Grade acquired: 100%.  
 - Class: CSC360 (Operating Systems). But continued working on it after the course.  
