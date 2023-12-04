@@ -1,7 +1,7 @@
 # File-system assignment
 - Name: Jimmy Chen Chen.  
 - Grade acquired: 100%.  
-- Class: CSC360 (Operating Systems). But continued working on it after the course.  
+- Class: CSC360 (Operating Systems).  
 - Convention for this project: returning 0 and 1 usually denotes failure and success respectively.  
 - Type: Flavour of the original UNIX filesystem (partitioned in 512 bytes blocks).  
 
